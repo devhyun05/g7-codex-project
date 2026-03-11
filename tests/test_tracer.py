@@ -332,6 +332,34 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertEqual(structure["nodes"][2]["prev_id"], structure["nodes"][1]["id"])
         self.assertEqual(structure["current_id"], structure["nodes"][2]["id"])
 
+    def test_hides_unlinked_single_nodes_until_pointer_connection(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "class Node:",
+                    "    def __init__(self, value):",
+                    "        self.value = value",
+                    "        self.next = None",
+                    "",
+                    "a = Node(1)",
+                    "b = Node(2)",
+                    "c = Node(3)",
+                    "a.next = b",
+                    "b.next = c",
+                    "print(a.value)",
+                ]
+            )
+        )
+
+        linked_steps = [
+            step
+            for step in result["steps"]
+            if step.get("structure") and step["structure"].get("kind") == "linked-list"
+        ]
+        self.assertTrue(linked_steps)
+        self.assertTrue(all(len(step["structure"]["nodes"]) >= 2 for step in linked_steps))
+        self.assertEqual(len(result["steps"][-1]["structure"]["nodes"]), 3)
+
     def test_keeps_frame_locals_after_recursive_return(self):
         result = self.tracer.trace(
             "\n".join(

@@ -187,21 +187,10 @@
       return null;
     }
 
-    for (let offset = 1; offset < state.steps.length; offset += 1) {
-      const leftIndex = state.currentIndex - offset;
-      if (leftIndex >= 0) {
-        const left = state.steps[leftIndex];
-        if (left && left.structure && left.structure.kind === "linked-list") {
-          return left.structure;
-        }
-      }
-
-      const rightIndex = state.currentIndex + offset;
-      if (rightIndex < state.steps.length) {
-        const right = state.steps[rightIndex];
-        if (right && right.structure && right.structure.kind === "linked-list") {
-          return right.structure;
-        }
+    for (let index = state.currentIndex - 1; index >= 0; index -= 1) {
+      const previous = state.steps[index];
+      if (previous && previous.structure && previous.structure.kind === "linked-list") {
+        return previous.structure;
       }
     }
     return null;

@@ -308,6 +308,14 @@ class StructureDetector:
         if not nodes:
             return None
 
+        has_pointer_link = any(
+            node.get("next_id") is not None or node.get("prev_id") is not None
+            for node in nodes
+        )
+        if not has_pointer_link:
+            # Ignore isolated node allocations and start rendering once links are formed.
+            return None
+
         return {
             "list_type": "doubly" if is_doubly else "singly",
             "head_id": nodes[0]["id"],
