@@ -136,16 +136,37 @@
   }
 
   function shouldPreferSortingBars(step, state, sortingState) {
-    if (!sortingState) {
-      return false;
-    }
     const intents = state && state.runResult && state.runResult.analysis
       ? state.runResult.analysis.intents
       : null;
-    return Boolean(intents && intents.sorting);
+    const stackTop = step && Array.isArray(step.stack) && step.stack.length
+      ? step.stack[step.stack.length - 1]
+      : null;
+    const stackLooksSorting = Boolean(
+      stackTop &&
+        typeof stackTop.name === "string" &&
+        stackTop.name.toLowerCase().includes("sort"),
+    );
+    if (!(intents && intents.sorting) && !stackLooksSorting) {
+      return false;
+    }
+    return Boolean(sortingState || stackLooksSorting || (intents && intents.sorting));
   }
 
   function extractSortingState(step, state) {
+    const fromCurrent = findSortingStateInStep(step, state, true);
+    if (fromCurrent) {
+      return fromCurrent;
+    }
+
+    const nearby = findNearbySortingState(state);
+    if (nearby) {
+      return nearby;
+    }
+    return null;
+  }
+
+  function findSortingStateInStep(step, state, includeDiff) {
     if (!step) {
       return null;
     }
@@ -160,17 +181,42 @@
       return null;
     }
 
-    const prevStep = state && Array.isArray(state.steps) && state.currentIndex > 0
-      ? state.steps[state.currentIndex - 1]
-      : null;
-    const prevValues = prevStep
-      ? findCandidateValues(prevStep, candidate.scope, candidate.name)
-      : null;
-
     return {
       ...candidate,
-      changedIndices: detectChangedIndices(prevValues, candidate.compareValues),
+      changedIndices: includeDiff
+        ? detectChangedIndices(
+            state && Array.isArray(state.steps) && state.currentIndex > 0
+              ? findCandidateValues(state.steps[state.currentIndex - 1], candidate.scope, candidate.name)
+              : null,
+            candidate.compareValues,
+          )
+        : [],
     };
+  }
+
+  function findNearbySortingState(state) {
+    if (!state || !Array.isArray(state.steps) || !state.steps.length) {
+      return null;
+    }
+
+    for (let offset = 1; offset < state.steps.length; offset += 1) {
+      const leftIndex = state.currentIndex - offset;
+      if (leftIndex >= 0) {
+        const leftState = findSortingStateInStep(state.steps[leftIndex], state, false);
+        if (leftState) {
+          return leftState;
+        }
+      }
+
+      const rightIndex = state.currentIndex + offset;
+      if (rightIndex < state.steps.length) {
+        const rightState = findSortingStateInStep(state.steps[rightIndex], state, false);
+        if (rightState) {
+          return rightState;
+        }
+      }
+    }
+    return null;
   }
 
   function pickBetterCandidate(left, right) {
@@ -317,7 +363,7 @@
     if (!sortingState) {
       return `
         <div class="stage-scroll">
-          <div class="structure-board">정렬 대상 숫자 배열을 찾지 못했습니다.</div>
+          <div class="structure-board">정렬 대상 배열이 아직 보이지 않습니다. step을 이동해 배열이 생성된 지점을 확인하세요.</div>
         </div>
       `;
     }
@@ -334,11 +380,11 @@
             ${sortingState.values
               .map((value, index) => {
                 const normalized = ((value - sortingState.min) / range) * 100;
-                const height = Math.max(12, normalized);
+                const height = Math.round(24 + (normalized / 100) * 200);
                 const changed = sortingState.changedIndices.includes(index) ? "changed" : "";
                 return `
                   <div class="sorting-bar-wrap">
-                    <div class="sorting-bar ${changed}" style="height: ${height}%;">
+                    <div class="sorting-bar ${changed}" style="height: ${height}px;">
                       <span class="sorting-value">${utils.escapeHtml(sortingState.labels[index] || String(value))}</span>
                     </div>
                     <span class="sorting-index">${index}</span>
