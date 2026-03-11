@@ -73,6 +73,10 @@
   background: var(--teal);
 }
 
+.legend-dot.sorted {
+  background: #2e8b57;
+}
+
 .graph-svg,
 .tree-svg {
   width: 100%;
@@ -225,6 +229,11 @@
 .sorting-bar.changed {
   background: rgba(211, 106, 53, 0.22);
   border-color: var(--accent);
+}
+
+.sorting-bar.sorted {
+  background: rgba(46, 139, 87, 0.22);
+  border-color: #2e8b57;
 }
 
 .sorting-value {

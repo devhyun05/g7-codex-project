@@ -191,6 +191,7 @@
             candidate.compareValues,
           )
         : [],
+      sortedIndices: detectSortedIndices(candidate.compareValues),
     };
   }
 
@@ -359,6 +360,39 @@
     return changed;
   }
 
+  function detectSortedIndices(values) {
+    if (!Array.isArray(values) || values.length < 2) {
+      return [];
+    }
+
+    const numericMode = values.every((value) => normalizeNumericValue(value) !== null);
+    const sorted = [...values].sort((left, right) => {
+      if (numericMode) {
+        return normalizeNumericValue(left) - normalizeNumericValue(right);
+      }
+      return String(left).localeCompare(String(right), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+
+    const indices = [];
+    for (let index = 0; index < values.length; index += 1) {
+      if (toComparableKey(values[index]) === toComparableKey(sorted[index])) {
+        indices.push(index);
+      }
+    }
+    return indices;
+  }
+
+  function toComparableKey(value) {
+    const numericValue = normalizeNumericValue(value);
+    if (numericValue !== null) {
+      return `n:${numericValue}`;
+    }
+    return `s:${String(value)}`;
+  }
+
   function buildSortingMarkup(sortingState) {
     if (!sortingState) {
       return `
@@ -373,6 +407,7 @@
       <div class="stage-scroll">
         <div class="visual-caption">
           <span><span class="legend-dot current"></span>이번 step에서 값이 바뀐 위치</span>
+          <span><span class="legend-dot sorted"></span>정렬 완료 위치</span>
           <span>대상: ${utils.escapeHtml(sortingState.scope)}.${utils.escapeHtml(sortingState.name)}</span>
         </div>
         <div class="sorting-board">
@@ -381,10 +416,14 @@
               .map((value, index) => {
                 const normalized = ((value - sortingState.min) / range) * 100;
                 const height = Math.round(24 + (normalized / 100) * 200);
-                const changed = sortingState.changedIndices.includes(index) ? "changed" : "";
+                const changed = sortingState.changedIndices.includes(index);
+                const sorted = sortingState.sortedIndices.includes(index);
+                const statusClass = [changed ? "changed" : "", sorted ? "sorted" : ""]
+                  .filter(Boolean)
+                  .join(" ");
                 return `
                   <div class="sorting-bar-wrap">
-                    <div class="sorting-bar ${changed}" style="height: ${height}px;">
+                    <div class="sorting-bar ${statusClass}" style="height: ${height}px;">
                       <span class="sorting-value">${utils.escapeHtml(sortingState.labels[index] || String(value))}</span>
                     </div>
                     <span class="sorting-index">${index}</span>
