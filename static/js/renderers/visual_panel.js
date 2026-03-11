@@ -24,6 +24,7 @@
       dom.stageCaption.textContent = "정렬 대상 배열의 값 변화를 막대 그래프로 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildSortingMarkup(sortingState);
+      attachSortingNavigation(dom);
       return view;
     }
 
@@ -545,6 +546,10 @@
           <span><span class="legend-dot sorted"></span>정렬 완료 위치</span>
           <span>대상: ${utils.escapeHtml(sortingState.scope)}.${utils.escapeHtml(sortingState.name)}</span>
         </div>
+        <div class="sorting-nav">
+          <button type="button" class="sorting-nav-btn" data-sort-nav="left">◀ 왼쪽</button>
+          <button type="button" class="sorting-nav-btn" data-sort-nav="right">오른쪽 ▶</button>
+        </div>
         <div class="sorting-board">
           <div class="sorting-bars">
             ${sortingState.values
@@ -570,6 +575,26 @@
         </div>
       </div>
     `;
+  }
+
+  function attachSortingNavigation(dom) {
+    const lane = dom.primaryStage.querySelector(".sorting-bars");
+    if (!lane) {
+      return;
+    }
+    const step = Math.max(240, Math.floor(lane.clientWidth * 0.7));
+    const leftButton = dom.primaryStage.querySelector("[data-sort-nav='left']");
+    const rightButton = dom.primaryStage.querySelector("[data-sort-nav='right']");
+    if (leftButton) {
+      leftButton.addEventListener("click", () => {
+        lane.scrollBy({ left: -step, behavior: "smooth" });
+      });
+    }
+    if (rightButton) {
+      rightButton.addEventListener("click", () => {
+        lane.scrollBy({ left: step, behavior: "smooth" });
+      });
+    }
   }
 
   function buildSummaryMarkup(step, activeFrame, state) {
