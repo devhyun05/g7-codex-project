@@ -72,6 +72,8 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if self._looks_like_sort_name(node.name):
             self.sorting_detected = True
+        if self._has_indexed_sorting_pattern(node):
+            self.sorting_detected = True
         self.generic_visit(node)
 
     def visit_Import(self, node: ast.Import) -> None:
@@ -310,6 +312,83 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             return
         if self.sorting_order != order:
             self.sorting_order = "unknown"
+
+    def _has_indexed_sorting_pattern(self, node: ast.FunctionDef) -> bool:
+        loop_exists = False
+        compared_names: set[str] = set()
+        written_lists: set[str] = set()
+
+        for child in ast.walk(node):
+            if isinstance(child, (ast.For, ast.While)):
+                loop_exists = True
+
+            if isinstance(child, ast.Compare):
+                for name in self._subscripted_list_names(child):
+                    compared_names.add(name)
+                inferred = self._insertion_like_order(child)
+                if inferred:
+                    self._register_sort_order(inferred[1])
+
+            if isinstance(child, ast.Assign):
+                for target in child.targets:
+                    for name in self._written_subscript_names(target):
+                        written_lists.add(name)
+            elif isinstance(child, ast.AugAssign):
+                for name in self._written_subscript_names(child.target):
+                    written_lists.add(name)
+
+        if not loop_exists:
+            return False
+
+        candidates = compared_names & written_lists
+        if not candidates:
+            return False
+        return True
+
+    def _subscripted_list_names(self, node: ast.AST) -> set[str]:
+        names: set[str] = set()
+        for child in ast.walk(node):
+            if isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name):
+                names.add(child.value.id)
+        return names
+
+    def _written_subscript_names(self, node: ast.AST) -> set[str]:
+        names: set[str] = set()
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
+            names.add(node.value.id)
+        elif isinstance(node, (ast.Tuple, ast.List)):
+            for elt in node.elts:
+                names |= self._written_subscript_names(elt)
+        return names
+
+    def _operator_order(self, op: ast.cmpop) -> str:
+        if isinstance(op, (ast.Gt, ast.GtE)):
+            return "asc"
+        if isinstance(op, (ast.Lt, ast.LtE)):
+            return "desc"
+        return "unknown"
+
+    def _insertion_like_order(self, node: ast.Compare) -> tuple[str, str] | None:
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            return None
+        left_names = self._subscripted_list_names(node.left)
+        right_names = self._subscripted_list_names(node.comparators[0])
+        if not left_names and not right_names:
+            return None
+
+        if left_names and not right_names and len(left_names) == 1:
+            return (next(iter(left_names)), self._operator_order(node.ops[0]))
+        if right_names and not left_names and len(right_names) == 1:
+            reversed_order = self._reverse_order(self._operator_order(node.ops[0]))
+            return (next(iter(right_names)), reversed_order)
+        return None
+
+    def _reverse_order(self, order: str) -> str:
+        if order == "asc":
+            return "desc"
+        if order == "desc":
+            return "asc"
+        return "unknown"
 
     def _compared_subscript_name(self, node: ast.AST) -> tuple[str, str] | None:
         if not isinstance(node, ast.Compare):

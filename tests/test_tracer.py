@@ -246,6 +246,30 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(result["analysis"]["intents"]["sorting"])
         self.assertEqual(result["analysis"]["intents"]["sorting_order"], "desc")
 
+    def test_detects_insertion_pattern_without_sort_name(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def reorder(values):",
+                    "    for i in range(1, len(values)):",
+                    "        key = values[i]",
+                    "        j = i - 1",
+                    "        while j >= 0 and values[j] > key:",
+                    "            values[j + 1] = values[j]",
+                    "            j -= 1",
+                    "        values[j + 1] = key",
+                    "    return values",
+                    "",
+                    "data = [9, 3, 7, 1]",
+                    "print(reorder(data))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertEqual(result["analysis"]["intents"]["sorting_order"], "asc")
+
 
 if __name__ == "__main__":
     unittest.main()
