@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Python Flow Visualizer</title>
+    <title>Code Flow Visualizer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,23 +12,23 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css', v='20260311-4') }}"
+      href="{{ url_for('static', filename='css/styles.css', v='20260311-5') }}"
     />
   </head>
   <body>
     <div class="page-shell">
       <header class="topbar">
         <div class="brand">
-          <h1>Python Flow Visualizer</h1>
-          <p class="brand-subtitle">`app.py`는 진입점만 두고, 기능은 분리된 파일에서 처리합니다.</p>
+          <h1>Code Flow Visualizer</h1>
+          <p class="brand-subtitle">Python tracing with multi-language code recognition for coding-test workflows.</p>
         </div>
         <div class="toolbar">
           <div class="transport-controls">
-            <button id="prev-step" class="step-button" type="button" disabled>이전</button>
-            <button id="play-step" class="step-button" type="button" disabled>재생</button>
-            <button id="next-step" class="step-button" type="button" disabled>다음</button>
+            <button id="prev-step" class="step-button" type="button" disabled>Prev</button>
+            <button id="play-step" class="step-button" type="button" disabled>Play</button>
+            <button id="next-step" class="step-button" type="button" disabled>Next</button>
           </div>
-          <button id="run-button" class="primary-button" type="button">실행 시작</button>
+          <button id="run-button" class="primary-button" type="button">Run</button>
         </div>
       </header>
 
@@ -37,14 +37,18 @@
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
-                <h2>현재 실행 코드</h2>
-                <p class="panel-caption">실행 중인 줄을 강조하고, 편집 모드에서는 입력 코드를 직접 작성합니다.</p>
+                <h2>Code</h2>
+                <p class="panel-caption">Paste a solution, detect the language, and trace Python step by step.</p>
               </div>
               <div class="panel-actions">
                 <div class="meta-pills">
                   <span class="meta-pill">
                     <span class="meta-key">step</span>
                     <strong id="step-counter">0 / 0</strong>
+                  </span>
+                  <span class="meta-pill">
+                    <span class="meta-key">lang</span>
+                    <strong id="language-pill">AUTO</strong>
                   </span>
                   <span class="meta-pill">
                     <span class="meta-key">func</span>
@@ -64,8 +68,24 @@
                   value="0"
                   disabled
                 />
+                <label class="editor-field" for="language-select">
+                  <span class="editor-label">Language</span>
+                  <select id="language-select" aria-label="Programming language">
+                    <option value="auto">Auto Detect</option>
+                    <option value="python">Python</option>
+                    <option value="cpp">C++</option>
+                    <option value="java">Java</option>
+                    <option value="c">C</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="kotlin">Kotlin</option>
+                    <option value="go">Go</option>
+                    <option value="rust">Rust</option>
+                    <option value="csharp">C#</option>
+                  </select>
+                </label>
                 <button id="edit-code-button" class="ghost-button hidden" type="button">
-                  코드 수정
+                  Edit Code
                 </button>
               </div>
             </div>
@@ -73,43 +93,43 @@
             <div id="editor-wrap" class="editor-wrap">
               <div class="editor-grid">
                 <label class="editor-field">
-                  <span class="editor-label">Python 코드</span>
+                  <span class="editor-label">Source</span>
                   <textarea
                     id="code-input"
                     spellcheck="false"
-                    aria-label="Python code editor"
-                    placeholder="여기에 Python 코드를 입력하세요."
+                    aria-label="Code editor"
+                    placeholder="Paste Python, C++, Java, C, JavaScript, TypeScript, Kotlin, Go, Rust, or C# code"
                   ></textarea>
                 </label>
                 <label class="editor-field stdin-field">
-                  <span class="editor-label">입력 데이터</span>
+                  <span class="editor-label">Standard Input</span>
                   <textarea
                     id="stdin-input"
                     class="stdin-input"
                     spellcheck="false"
-                    aria-label="Python stdin input"
-                    placeholder="input()이 필요하면 줄 단위로 입력하세요."
+                    aria-label="stdin input"
+                    placeholder="Only used when tracing Python code with input()"
                   ></textarea>
-                  <span class="editor-hint">`input()` 호출 순서대로 위에서부터 한 줄씩 소비됩니다.</span>
+                  <span class="editor-hint">One input line per line.</span>
                 </label>
               </div>
             </div>
 
             <div id="code-viewer" class="code-viewer empty-state hidden">
-              실행 기록이 생성되면 코드 흐름이 여기에 표시됩니다.
+              The executed code will appear here once a Python trace is available.
             </div>
           </section>
 
           <section class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
-                <h2>출력</h2>
-                <p class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
+                <h2>Output</h2>
+                <p class="panel-caption">Shows stdout and any error for the current step.</p>
               </div>
               <span id="output-status" class="chip">IDLE</span>
             </div>
             <div id="output-view" class="support-body empty-state">
-              실행 출력이 여기에 표시됩니다.
+              Run the visualizer to see output here.
             </div>
           </section>
         </section>
@@ -118,44 +138,45 @@
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
-                <h2 id="stage-title">주 시각화</h2>
+                <h2 id="stage-title">Visualization</h2>
                 <p id="stage-caption" class="panel-caption">
-                  코드에서 감지한 자료구조를 기준으로 가장 알맞은 시각화를 자동 선택합니다.
+                  Graphs, stacks, queues, trees, and call flow appear here when Python tracing is available.
                 </p>
               </div>
               <div class="panel-actions">
-                <span id="event-label" class="chip">대기</span>
+                <span id="event-label" class="chip">idle</span>
                 <span id="primary-view-label" class="chip chip-accent">SUMMARY</span>
               </div>
             </div>
             <div id="primary-stage" class="visual-stage empty-state">
-              실행 결과가 여기에 표시됩니다.
+              Trace output will appear here.
             </div>
           </section>
 
           <section class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
-                <h2>코드 설명</h2>
-                <p class="panel-caption">현재 step 설명과 자동 판단된 자료구조를 함께 정리합니다.</p>
+                <h2>Explanation</h2>
+                <p class="panel-caption">Step details, detected language, and structure hints.</p>
               </div>
             </div>
             <div id="explanation-view" class="support-body empty-state">
-              실행을 시작하면 설명이 여기에 표시됩니다.
+              Start a run to see the explanation panel.
             </div>
           </section>
         </section>
       </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/browser_tracers.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='20260311-5') }}"></script>
   </body>
 </html>

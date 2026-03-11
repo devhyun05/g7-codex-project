@@ -18,12 +18,12 @@
 
     describeView(view) {
       const labels = {
-        graph: "인접 구조를 그래프 흐름으로 시각화하고 있습니다.",
-        "data-tree": "노드 구조를 트리로 판단해 현재 노드를 강조하고 있습니다.",
-        stack: "push / pop 흐름을 보기 좋게 스택 형태로 시각화하고 있습니다.",
-        queue: "front / back 이동이 보이도록 큐 형태로 시각화하고 있습니다.",
-        "call-tree": "자료구조보다 재귀 호출 흐름이 중요해 호출 트리를 보여주고 있습니다.",
-        summary: "특정 자료구조가 없어서 실행 상태 요약을 보여주고 있습니다.",
+        graph: "Showing an adjacency-style graph view.",
+        "data-tree": "Showing a tree structure view.",
+        stack: "Showing a stack-style view with the top highlighted.",
+        queue: "Showing a queue-style view with front and back highlighted.",
+        "call-tree": "Showing the nested function call flow.",
+        summary: "Showing a general execution summary.",
       };
       return labels[view] || labels.summary;
     },
@@ -75,10 +75,10 @@
 
     structureKindLabel(kind) {
       const labels = {
-        graph: "그래프",
-        tree: "트리",
-        stack: "스택",
-        queue: "큐",
+        graph: "Graph",
+        tree: "Tree",
+        stack: "Stack",
+        queue: "Queue",
       };
       return labels[kind] || kind;
     },

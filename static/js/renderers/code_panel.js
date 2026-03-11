@@ -36,7 +36,7 @@
     dom.outputStatus.textContent = error ? "ERROR" : stdout ? "STDOUT" : "IDLE";
     dom.outputView.className = "support-body output-body";
     dom.outputView.innerHTML = `
-      <pre class="stdout-pre">${utils.escapeHtml(stdout || "출력이 없습니다.")}</pre>
+      <pre class="stdout-pre">${utils.escapeHtml(stdout || "No stdout output.")}</pre>
       ${error ? `<div class="output-error">${utils.escapeHtml(error)}</div>` : ""}
     `;
   }

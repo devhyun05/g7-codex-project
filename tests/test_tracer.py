@@ -1,5 +1,10 @@
 import unittest
+import shutil
 
+from visualizer.services.language_service import LanguageDetector
+from visualizer.services.tracing_registry import TracingRegistry
+from visualizer.services.trace_service import TraceService
+from visualizer.tracing.javascript_tracer import JavaScriptLineTracer
 from tracer import ExecutionTracer
 
 
@@ -162,6 +167,161 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(
             any(item["kind"] == "tree" for item in result["analysis"]["structures"])
         )
+
+
+class LanguageDetectorTest(unittest.TestCase):
+    def setUp(self):
+        self.detector = LanguageDetector()
+
+    def test_detects_cpp_code(self):
+        result = self.detector.detect(
+            "\n".join(
+                [
+                    "#include <bits/stdc++.h>",
+                    "using namespace std;",
+                    "int main() {",
+                    "  ios::sync_with_stdio(false);",
+                    "  cout << 1 << '\\n';",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertEqual(result["key"], "cpp")
+        self.assertFalse(result["trace_supported"])
+
+    def test_honors_manual_language_selection(self):
+        result = self.detector.detect("console.log(1);", requested="javascript")
+
+        self.assertEqual(result["key"], "javascript")
+        self.assertEqual(result["source"], "manual")
+
+    def test_trace_service_returns_language_metadata_for_non_python_code(self):
+        class FakeExecutor:
+            def execute(self, code, stdin, language_key):
+                return {
+                    "ok": True,
+                    "code": code,
+                    "stdin": stdin,
+                    "steps": [],
+                    "stdout": "hello from executor",
+                    "error": None,
+                    "analysis": {"structures": [], "intent_map": {}, "summary": ""},
+                    "run_mode": "execution",
+                    "execution": {"language_key": language_key, "ran": True},
+                }
+
+        service = TraceService(executor=FakeExecutor())
+        result = service.visualize(
+            "\n".join(
+                [
+                    "public class Main {",
+                    "  public static void main(String[] args) {",
+                    "    System.out.println(1);",
+                    "  }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertEqual(result["language"]["key"], "java")
+        self.assertEqual(result["steps"], [])
+        self.assertEqual(result["stdout"], "hello from executor")
+        self.assertEqual(result["run_mode"], "execution")
+
+    def test_trace_service_returns_trace_capabilities(self):
+        service = TraceService()
+        result = service.visualize("print(1)")
+
+        self.assertEqual(result["trace_capabilities"]["language_key"], "python")
+        self.assertTrue(result["trace_capabilities"]["line_tracing"])
+
+
+class TracingRegistryTest(unittest.TestCase):
+    def test_marks_cpp_as_planned_and_hard(self):
+        registry = TracingRegistry()
+
+        capabilities = registry.describe("cpp")
+
+        self.assertEqual(capabilities["status"], "planned")
+        self.assertEqual(capabilities["difficulty"], "hard")
+        self.assertFalse(capabilities["line_tracing"])
+
+    def test_marks_csharp_as_experimental_line_tracer(self):
+        registry = TracingRegistry()
+
+        capabilities = registry.describe("csharp")
+
+        self.assertEqual(capabilities["status"], "experimental")
+        self.assertTrue(capabilities["line_tracing"])
+
+    def test_marks_javascript_as_experimental_line_tracer(self):
+        registry = TracingRegistry()
+
+        capabilities = registry.describe("javascript")
+
+        self.assertEqual(capabilities["status"], "experimental")
+        self.assertTrue(capabilities["line_tracing"])
+
+
+class JavaScriptTracingUnitTest(unittest.TestCase):
+    def test_javascript_instrumentation_inserts_trace_calls(self):
+        tracer = JavaScriptLineTracer()
+        instrumented = tracer._instrument_code(
+            "\n".join(
+                [
+                    "function solve() {",
+                    "  let x = 1;",
+                    "  x += 2;",
+                    "  console.log(x);",
+                    "}",
+                    "solve();",
+                ]
+            )
+        )
+
+        self.assertIn("__traceStep(2);", instrumented)
+        self.assertIn("__traceStep(3);", instrumented)
+        self.assertIn("__traceStep(6);", instrumented)
+
+    def test_javascript_tracer_reports_missing_runtime(self):
+        tracer = JavaScriptLineTracer()
+        result = tracer.trace("console.log(1);")
+
+        if shutil.which("node"):
+            self.assertIn("steps", result)
+        else:
+            self.assertEqual(result["error"], "Required runtime was not found: node.")
+
+
+@unittest.skipUnless(shutil.which("dotnet"), "dotnet runtime not available")
+class CSharpTracingIntegrationTest(unittest.TestCase):
+    def test_csharp_generates_line_steps(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        int x = 1;",
+                    "        x += 2;",
+                    "        Console.WriteLine(x);",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertEqual(result["language"]["key"], "csharp")
+        self.assertEqual(result["run_mode"], "trace")
+        self.assertGreaterEqual(len(result["steps"]), 3)
+        self.assertTrue(any(step.get("line") == 6 for step in result["steps"]))
+        snapshot_step = next(step for step in result["steps"] if step.get("line") == 6)
+        self.assertIn("x", snapshot_step["globals"])
+        self.assertEqual(snapshot_step["globals"]["x"]["repr"], "1")
 
 
 if __name__ == "__main__":

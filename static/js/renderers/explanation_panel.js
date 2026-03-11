@@ -7,10 +7,13 @@
   function render(dom, state, step, primaryView) {
     const analysis = state.runResult.analysis || { structures: [], summary: "" };
     const structures = analysis.structures || [];
+    const language = state.runResult.language || { label: "Unknown", trace_supported: false };
+    const runMode = state.runResult.runMode || "trace";
+    const traceCapabilities = state.runResult.traceCapabilities;
 
-    if (!step && !structures.length && !state.runResult.error) {
+    if (!step && !structures.length && !state.runResult.error && !state.runResult.stdout) {
       dom.explanationView.className = "support-body empty-state";
-      dom.explanationView.textContent = "실행을 시작하면 설명이 여기에 표시됩니다.";
+      dom.explanationView.textContent = "Start a run to see the explanation panel.";
       return;
     }
 
@@ -18,6 +21,9 @@
     dom.explanationView.innerHTML = `
       <div class="info-grid">
         ${buildCurrentStepCard(step, state)}
+        ${buildLanguageCard(language, runMode)}
+        ${buildTracingCard(traceCapabilities)}
+        ${buildVariablesCard(step)}
         ${buildLineCard(step)}
         ${buildStructureCard(structures)}
         ${buildViewCard(primaryView)}
@@ -28,29 +34,76 @@
   function buildCurrentStepCard(step, state) {
     const text = step
       ? step.explanation || step.message
-      : state.runResult.error || "아직 실행되지 않았습니다.";
-    return buildCard("현재 단계", `<p>${utils.escapeHtml(text)}</p>`);
+      : state.runResult.error
+        || (state.runResult.stdout ? "Execution finished." : "The run has not started yet.");
+    return buildCard("Current Step", `<p>${utils.escapeHtml(text)}</p>`);
+  }
+
+  function buildLanguageCard(language, runMode) {
+    const mode = runMode === "execution"
+      ? "Executed"
+      : language.trace_supported
+        ? "Trace available"
+        : "Detection only";
+    return buildCard(
+      "Language",
+      `<p><strong>${utils.escapeHtml(language.label || "Unknown")}</strong> · ${utils.escapeHtml(mode)}</p>`,
+    );
+  }
+
+  function buildTracingCard(traceCapabilities) {
+    if (!traceCapabilities) {
+      return buildCard("Tracing", "<p>No tracing capability metadata is available yet.</p>");
+    }
+
+    return buildCard(
+      "Tracing",
+      `<p><strong>${utils.escapeHtml(traceCapabilities.status)}</strong> · ${utils.escapeHtml(traceCapabilities.difficulty)}</p><p>${utils.escapeHtml(traceCapabilities.approach)}</p>`,
+    );
   }
 
   function buildLineCard(step) {
     const lineSource = step && step.line_source ? step.line_source : "";
     if (!lineSource) {
-      return buildCard("현재 줄", "<p>현재 강조 중인 줄이 없습니다.</p>");
+      return buildCard("Current Line", "<p>There is no active source line for this state.</p>");
     }
 
     return buildCard(
-      "현재 줄",
+      "Current Line",
       `<div class="line-preview">${utils.escapeHtml(lineSource)}</div>`,
+    );
+  }
+
+  function buildVariablesCard(step) {
+    const variables = step && step.globals ? Object.entries(step.globals) : [];
+    if (!variables.length) {
+      return buildCard("Variables", "<p>No captured variable snapshot for this step.</p>");
+    }
+
+    return buildCard(
+      "Variables",
+      `
+        <div class="info-grid">
+          ${variables
+            .slice(0, 8)
+            .map(
+              ([name, value]) => `
+                <p><strong>${utils.escapeHtml(name)}</strong> = ${utils.escapeHtml(value.repr || "")} <em>(${utils.escapeHtml(value.type || "unknown")})</em></p>
+              `,
+            )
+            .join("")}
+        </div>
+      `,
     );
   }
 
   function buildStructureCard(structures) {
     if (!structures.length) {
-      return buildCard("자동 판단", "<p>코드에서 특정 자료구조를 감지하지 못했습니다.</p>");
+      return buildCard("Detected Structures", "<p>No supported data structure pattern was found.</p>");
     }
 
     return buildCard(
-      "자동 판단",
+      "Detected Structures",
       `
         <div class="tag-row">
           ${structures
@@ -76,7 +129,7 @@
 
   function buildViewCard(primaryView) {
     return buildCard(
-      "현재 시각화",
+      "Current View",
       `<p>${utils.escapeHtml(utils.describeView(primaryView))}</p>`,
     );
   }

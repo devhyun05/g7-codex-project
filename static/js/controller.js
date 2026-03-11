@@ -2,6 +2,7 @@
   window.Visualizer = window.Visualizer || {};
 
   const api = window.Visualizer.api;
+  const browserTracers = window.Visualizer.browserTracers;
   const domApi = window.Visualizer.dom;
   const stateApi = window.Visualizer.state;
   const utils = window.Visualizer.utils;
@@ -18,6 +19,7 @@
     bindEvents();
     dom.codeInput.value = state.code;
     dom.stdinInput.value = state.stdin;
+    dom.languageSelect.value = state.language;
     resetEditorState();
   }
 
@@ -34,11 +36,17 @@
       state.currentIndex = Number(event.target.value);
       renderTraceState();
     });
+    dom.languageSelect.addEventListener("change", (event) => {
+      state.language = event.target.value;
+      updateHeader(getCurrentStep());
+      explanationPanel.render(dom, state, getCurrentStep(), state.primaryView);
+    });
   }
 
   function syncDraft() {
     state.code = dom.codeInput.value;
     state.stdin = dom.stdinInput.value;
+    state.language = dom.languageSelect.value;
   }
 
   function resetEditorState(message) {
@@ -60,19 +68,26 @@
 
     if (!state.code.trim()) {
       state.runResult = stateApi.createRunResult(state.stdin);
-      state.runResult.error = "시각화할 파이썬 코드를 입력하세요.";
+      state.runResult.error = "Please enter code to visualize.";
       resetEditorState(state.runResult.error);
       return;
     }
 
     dom.runButton.disabled = true;
     dom.playStepButton.disabled = true;
-    dom.runButton.textContent = "실행 중...";
+    dom.runButton.textContent = "Running...";
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
     try {
-      const { payload } = await api.visualizeCode(state.code, state.stdin, controller.signal);
+      const payload = shouldRunJavaScriptInBrowser(state)
+        ? browserTracers.runJavaScriptTrace(state.code, state.stdin)
+        : (await api.visualizeCode(
+          state.code,
+          state.stdin,
+          state.language,
+          controller.signal,
+        )).payload;
       window.clearTimeout(timeoutId);
 
       state.code = payload.code || state.code;
@@ -84,6 +99,10 @@
         error: payload.error || null,
         stdout: payload.stdout || "",
         stdin: payload.stdin || state.stdin,
+        runMode: payload.run_mode || "trace",
+        language: payload.language || stateApi.createLanguage(),
+        traceCapabilities: payload.trace_capabilities || null,
+        supportedLanguages: payload.supported_languages || [],
         analysis: payload.analysis || stateApi.createAnalysis(),
       };
       dom.codeInput.value = state.code;
@@ -92,18 +111,23 @@
       if (state.steps.length) {
         renderTraceState();
       } else {
-        resetEditorState(payload.error || "실행 기록을 만들지 못했습니다.");
+        resetEditorState(
+          payload.error
+            || (state.runResult.runMode === "execution"
+              ? "Execution finished without trace steps."
+              : "No trace steps were created."),
+        );
       }
     } catch (error) {
       window.clearTimeout(timeoutId);
       state.runResult = stateApi.createRunResult(state.stdin);
       state.runResult.error = error.name === "AbortError"
-        ? "서버 응답이 지연되고 있습니다. 개발 서버가 실행 중인지 확인하세요."
-        : "서버에 연결하지 못했습니다. `python3 app.py`로 서버가 실행 중인지 확인하세요.";
+        ? "The request timed out. Check whether the Flask server is still running."
+        : "Could not reach the server. Start the app before trying again.";
       resetEditorState(state.runResult.error);
     } finally {
       dom.runButton.disabled = false;
-      dom.runButton.textContent = "실행 시작";
+      dom.runButton.textContent = "Run";
     }
   }
 
@@ -131,6 +155,7 @@
     const activeFrame = getActiveFrame(step);
 
     dom.stepCounter.textContent = stepText;
+    dom.languagePill.textContent = formatLanguagePill();
     dom.functionPill.textContent = activeFrame ? activeFrame.name : "module";
     dom.linePill.textContent = step && step.line ? String(step.line) : "-";
     dom.eventLabel.textContent = step
@@ -138,6 +163,43 @@
       : state.runResult.error
         ? "error"
         : "idle";
+  }
+
+  function formatLanguagePill() {
+    const language = state.runResult.language;
+    if (language && language.key !== "unknown") {
+      if (state.runResult.runMode === "execution") {
+        return `${language.label} RUN`;
+      }
+      return language.trace_supported
+        ? `${language.label} TRACE`
+        : `${language.label} DETECTED`;
+    }
+
+    return state.language === "auto" ? "AUTO" : state.language.toUpperCase();
+  }
+
+  function shouldRunJavaScriptInBrowser(currentState) {
+    if (currentState.language === "javascript") {
+      return true;
+    }
+
+    if (currentState.language !== "auto") {
+      return false;
+    }
+
+    return looksLikeJavaScript(currentState.code);
+  }
+
+  function looksLikeJavaScript(code) {
+    const text = code || "";
+    return [
+      "console.log(",
+      "function ",
+      "let ",
+      "const ",
+      "=>",
+    ].some((needle) => text.includes(needle));
   }
 
   function configureControls() {
@@ -179,7 +241,7 @@
       renderTraceState();
     }
 
-    dom.playStepButton.textContent = "일시정지";
+    dom.playStepButton.textContent = "Pause";
     state.timer = window.setInterval(() => {
       if (state.currentIndex >= state.steps.length - 1) {
         stopPlayback();
@@ -195,7 +257,7 @@
       window.clearInterval(state.timer);
       state.timer = null;
     }
-    dom.playStepButton.textContent = "재생";
+    dom.playStepButton.textContent = "Play";
   }
 
   function getCurrentStep() {

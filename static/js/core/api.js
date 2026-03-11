@@ -1,13 +1,13 @@
 (function () {
   window.Visualizer = window.Visualizer || {};
 
-  async function visualizeCode(code, stdin, signal) {
+  async function visualizeCode(code, stdin, language, signal) {
     const response = await fetch("/api/visualize", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ code, stdin }),
+      body: JSON.stringify({ code, stdin, language }),
       signal,
     });
 
@@ -17,10 +17,17 @@
     } catch (error) {
       payload = {
         ok: false,
-        error: "서버 응답을 해석하지 못했습니다.",
+        error: "Could not parse the server response.",
         steps: [],
         stdout: "",
         stdin,
+        language: {
+          key: "unknown",
+          label: "Unknown",
+          source: "auto",
+          trace_supported: false,
+        },
+        supported_languages: [],
         analysis: {
           structures: [],
           intent_map: {},
