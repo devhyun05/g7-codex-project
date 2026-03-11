@@ -169,7 +169,7 @@
 
     return {
       ...candidate,
-      changedIndices: detectChangedIndices(prevValues, candidate.values),
+      changedIndices: detectChangedIndices(prevValues, candidate.compareValues),
     };
   }
 
@@ -203,7 +203,7 @@
       return null;
     }
     const parsed = parseNumericList(name, source[name], scope);
-    return parsed ? parsed.values : null;
+    return parsed ? parsed.compareValues : null;
   }
 
   function findNumericListCandidate(namespace, scope) {
@@ -225,25 +225,79 @@
   }
 
   function parseNumericList(name, value, scope) {
-    if (!value || value.type !== "list" || !Array.isArray(value.items) || value.items.length < 2) {
+    if (
+      !value ||
+      !["list", "tuple"].includes(value.type) ||
+      !Array.isArray(value.items) ||
+      value.items.length < 2
+    ) {
       return null;
     }
 
     const values = [];
+    const labels = [];
+    const compareValues = [];
+    let allNumeric = true;
+
     for (const item of value.items) {
-      if (!item || typeof item.value !== "number" || Number.isNaN(item.value)) {
+      if (!item) {
         return null;
       }
-      values.push(item.value);
+
+      const rawValue = item.value;
+      const numericValue = normalizeNumericValue(rawValue);
+
+      if (numericValue === null) {
+        allNumeric = false;
+        if (
+          typeof rawValue !== "string" &&
+          typeof rawValue !== "number" &&
+          typeof rawValue !== "boolean"
+        ) {
+          return null;
+        }
+      } else {
+        values.push(numericValue);
+      }
+      labels.push(String(rawValue));
+      compareValues.push(rawValue);
+    }
+
+    let displayValues = values;
+    if (!allNumeric) {
+      displayValues = rankValues(labels);
     }
 
     return {
       name,
       scope,
-      values,
-      min: Math.min(...values),
-      max: Math.max(...values),
+      values: displayValues,
+      labels,
+      compareValues,
+      min: Math.min(...displayValues),
+      max: Math.max(...displayValues),
     };
+  }
+
+  function normalizeNumericValue(value) {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  function rankValues(labels) {
+    const unique = Array.from(new Set(labels)).sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }),
+    );
+    const rankMap = new Map(unique.map((label, index) => [label, index + 1]));
+    return labels.map((label) => rankMap.get(label) || 1);
   }
 
   function detectChangedIndices(previous, current) {
@@ -285,7 +339,7 @@
                 return `
                   <div class="sorting-bar-wrap">
                     <div class="sorting-bar ${changed}" style="height: ${height}%;">
-                      <span class="sorting-value">${utils.escapeHtml(String(value))}</span>
+                      <span class="sorting-value">${utils.escapeHtml(sortingState.labels[index] || String(value))}</span>
                     </div>
                     <span class="sorting-index">${index}</span>
                   </div>
