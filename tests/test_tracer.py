@@ -388,6 +388,109 @@ class CSharpTracingIntegrationTest(unittest.TestCase):
         self.assertIn("x", snapshot_step["globals"])
         self.assertEqual(snapshot_step["globals"]["x"]["repr"], "1")
 
+    def test_csharp_builds_recursive_call_tree(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        Walk(2);",
+                    "    }",
+                    "",
+                    "    static int Walk(int n)",
+                    "    {",
+                    "        if (n == 0)",
+                    "        {",
+                    "            return 0;",
+                    "        }",
+                    "        return Walk(n - 1) + 1;",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        recursive_steps = [step for step in result["steps"] if len(step.get("stack", [])) >= 2]
+        self.assertTrue(recursive_steps)
+        self.assertTrue(any(step["event"] == "return" for step in result["steps"]))
+
+        labels = []
+
+        def walk(node):
+            labels.append(node["label"])
+            for child in node.get("children", []):
+                walk(child)
+
+        walk(result["steps"][-1]["call_tree"])
+        self.assertTrue(any(label.startswith("Walk(") for label in labels))
+
+        main_node = result["steps"][-1]["call_tree"]["children"][0]
+        self.assertEqual(len(main_node["children"]), 1)
+        self.assertEqual(main_node["children"][0]["label"], "Walk(n=2)")
+        self.assertEqual(main_node["children"][0]["children"][0]["label"], "Walk(n=1)")
+        self.assertEqual(main_node["children"][0]["children"][0]["children"][0]["label"], "Walk(n=0)")
+
+    def test_csharp_records_return_values_in_call_tree(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        Console.WriteLine(Double(3));",
+                    "    }",
+                    "",
+                    "    static int Double(int n)",
+                    "    {",
+                    "        return n * 2;",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        double_node = result["steps"][-1]["call_tree"]["children"][0]["children"][0]
+        self.assertEqual(double_node["return_value"], "6")
+
+    def test_csharp_detects_array_structure(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        int[] arr = new int[4];",
+                    "        arr[0] = 1;",
+                    "        arr[1] = 3;",
+                    "        Console.WriteLine(arr[1]);",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(any(item["kind"] == "array" and item["name"] == "arr" for item in result["analysis"]["structures"]))
+        array_steps = [
+            step
+            for step in result["steps"]
+            if step.get("structure") and step["structure"].get("kind") == "array"
+        ]
+        self.assertTrue(array_steps)
+        self.assertEqual(array_steps[-1]["structure"]["name"], "arr")
+
 
 if __name__ == "__main__":
     unittest.main()

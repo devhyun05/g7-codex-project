@@ -20,6 +20,7 @@
       const labels = {
         graph: "Showing an adjacency-style graph view.",
         "data-tree": "Showing a tree structure view.",
+        array: "Showing an array-style snapshot from the current step.",
         stack: "Showing a stack-style view with the top highlighted.",
         queue: "Showing a queue-style view with front and back highlighted.",
         "call-tree": "Showing the nested function call flow.",
@@ -56,6 +57,7 @@
       const labels = {
         graph: "GRAPH",
         "data-tree": "TREE",
+        array: "ARRAY",
         stack: "STACK",
         queue: "QUEUE",
         "call-tree": "CALL",
@@ -76,6 +78,7 @@
     structureKindLabel(kind) {
       const labels = {
         graph: "Graph",
+        array: "Array",
         tree: "Tree",
         stack: "Stack",
         queue: "Queue",

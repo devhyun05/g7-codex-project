@@ -84,20 +84,23 @@
     const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
     try {
-      const payload = shouldRunJavaScriptInBrowser(state)
-        ? browserTracers.runJavaScriptTrace(state.code, state.stdin)
-        : (await api.visualizeCode(
+      let payload;
+      if (shouldRunJavaScriptInBrowser(state)) {
+        payload = browserTracers.runJavaScriptTrace(state.code, state.stdin);
+      } else {
+        payload = (await api.visualizeCode(
           state.code,
           state.stdin,
           state.language,
           controller.signal,
         )).payload;
+      }
       window.clearTimeout(timeoutId);
 
       state.code = payload.code || state.code;
       state.stdin = payload.stdin || state.stdin;
       state.steps = payload.steps || [];
-      state.currentIndex = 0;
+      state.currentIndex = findInitialStepIndex(state.steps);
       state.runResult = {
         ok: Boolean(payload.ok),
         error: payload.error || null,
@@ -270,6 +273,53 @@
       return null;
     }
     return state.steps[state.currentIndex];
+  }
+
+  function findInitialStepIndex(steps) {
+    if (!Array.isArray(steps) || !steps.length) {
+      return 0;
+    }
+
+    let bestIndex = 0;
+    let bestScore = -1;
+
+    steps.forEach((step, index) => {
+      const stackDepth = Array.isArray(step.stack) ? step.stack.length : 0;
+      const hasCallTree = Boolean(step.call_tree && Array.isArray(step.call_tree.children) && step.call_tree.children.length);
+      const isRecursiveFrame = hasRepeatedFrameName(step.stack || []);
+      const hasStructure = Boolean(step.structure);
+
+      let score = 0;
+      if (hasCallTree) {
+        score += 10;
+      }
+      if (isRecursiveFrame) {
+        score += 100 + stackDepth;
+      } else {
+        score += stackDepth;
+      }
+      if (hasStructure) {
+        score += 5;
+      }
+      if (step.event === "return") {
+        score -= 1;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+
+    return bestIndex;
+  }
+
+  function hasRepeatedFrameName(stack) {
+    if (!Array.isArray(stack) || stack.length < 2) {
+      return false;
+    }
+    const names = stack.map((frame) => frame && frame.name).filter(Boolean);
+    return new Set(names).size < names.length;
   }
 
   function getActiveFrame(step) {

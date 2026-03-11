@@ -185,11 +185,11 @@ class CSharpInstrumentedTracer(BaseLanguageTracer):
     capabilities = TraceCapabilities(
         language_key="csharp",
         line_tracing=True,
-        variable_snapshots=False,
+        variable_snapshots=True,
         call_tree=True,
         structure_detection=False,
         difficulty="experimental",
-        approach="Uses source instrumentation before dotnet run. Line tracing works first; variable snapshots come later.",
+        approach="Uses source instrumentation before dotnet execution. Line tracing, variable snapshots, and recursive call trees are available.",
         status="experimental",
     )
 

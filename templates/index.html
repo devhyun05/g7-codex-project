@@ -28,7 +28,7 @@
       <header class="topbar">
         <div class="brand">
           <h1>Code Flow Visualizer</h1>
-          <p class="brand-subtitle">Python tracing with multi-language code recognition for coding-test workflows.</p>
+          <p class="brand-subtitle">Python tracing plus browser-side JavaScript execution for coding-test workflows.</p>
         </div>
         <div class="toolbar">
           <div class="transport-controls">
@@ -46,7 +46,7 @@
             <div class="panel-head">
               <div>
                 <h2>Code</h2>
-                <p class="panel-caption">Paste a solution, detect the language, and trace Python step by step.</p>
+                <p class="panel-caption">Paste a solution, detect the language, and run JavaScript directly in the browser.</p>
               </div>
               <div class="panel-actions">
                 <div class="meta-pills">
@@ -116,7 +116,7 @@
                     class="stdin-input"
                     spellcheck="false"
                     aria-label="stdin input"
-                    placeholder="Only used when tracing Python code with input()"
+                    placeholder="Used for Python input() and browser-side JavaScript stdin patterns"
                   ></textarea>
                   <span class="editor-hint">One input line per line.</span>
                 </label>
@@ -190,16 +190,17 @@
       </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/flow_sidebar.js', v='20260311-5') }}"></script>
-    <script src="{{ url_for('static', filename='js/layout/splitter.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-5') }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/browser_tracers.js', v='20260311-10') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/flow_sidebar.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/layout/splitter.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-10') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='20260311-10') }}"></script>
   </body>
 </html>

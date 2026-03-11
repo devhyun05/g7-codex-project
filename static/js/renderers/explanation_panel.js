@@ -25,6 +25,7 @@
         ${buildTracingCard(traceCapabilities)}
         ${buildVariablesCard(step)}
         ${buildLineCard(step)}
+        ${buildCurrentStructureCard(step)}
         ${buildStructureCard(structures)}
         ${buildViewCard(primaryView)}
       </div>
@@ -124,6 +125,25 @@
             .join("")}
         </div>
       `,
+    );
+  }
+
+  function buildCurrentStructureCard(step) {
+    const structure = step && step.structure;
+    if (!structure) {
+      return buildCard("Current Structure", "<p>No active structure visualization was detected for this step.</p>");
+    }
+
+    const messages = {
+      array: `배열 ${structure.name}의 인덱스별 값을 추적 중입니다.`,
+      stack: `스택 ${structure.name}의 top 변화를 추적 중입니다.`,
+      queue: `큐 ${structure.name}의 front/back 변화를 추적 중입니다.`,
+      tree: `트리 ${structure.name}의 현재 노드 구조를 추적 중입니다.`,
+    };
+
+    return buildCard(
+      "Current Structure",
+      `<p><strong>${utils.escapeHtml(utils.structureKindLabel(structure.kind))}</strong> - ${utils.escapeHtml(messages[structure.kind] || structure.name)}</p>`,
     );
   }
 
