@@ -197,22 +197,6 @@
   border: 1px solid rgba(34, 29, 23, 0.08);
 }
 
-.sorting-nav {
-  display: flex;
-  gap: 10px;
-}
-
-.sorting-nav-btn {
-  border: 1px solid rgba(34, 29, 23, 0.18);
-  background: #fff;
-  color: var(--ink);
-  border-radius: 10px;
-  padding: 6px 10px;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
 .sorting-bars {
   min-height: 280px;
   display: flex;
@@ -223,6 +207,12 @@
   scrollbar-gutter: stable both-edges;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 8px;
+  cursor: grab;
+}
+
+.sorting-bars.dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .sorting-bar-wrap {

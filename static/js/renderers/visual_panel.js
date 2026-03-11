@@ -24,7 +24,7 @@
       dom.stageCaption.textContent = "정렬 대상 배열의 값 변화를 막대 그래프로 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildSortingMarkup(sortingState);
-      attachSortingNavigation(dom);
+      attachSortingInteractions(dom);
       return view;
     }
 
@@ -541,15 +541,6 @@
     const range = sortingState.max - sortingState.min || 1;
     return `
       <div class="stage-scroll">
-        <div class="visual-caption">
-          <span><span class="legend-dot current"></span>이번 step에서 값이 바뀐 위치</span>
-          <span><span class="legend-dot sorted"></span>정렬 완료 위치</span>
-          <span>대상: ${utils.escapeHtml(sortingState.scope)}.${utils.escapeHtml(sortingState.name)}</span>
-        </div>
-        <div class="sorting-nav">
-          <button type="button" class="sorting-nav-btn" data-sort-nav="left">◀ 왼쪽</button>
-          <button type="button" class="sorting-nav-btn" data-sort-nav="right">오른쪽 ▶</button>
-        </div>
         <div class="sorting-board">
           <div class="sorting-bars">
             ${sortingState.values
@@ -577,24 +568,58 @@
     `;
   }
 
-  function attachSortingNavigation(dom) {
+  function attachSortingInteractions(dom) {
     const lane = dom.primaryStage.querySelector(".sorting-bars");
     if (!lane) {
       return;
     }
-    const step = Math.max(240, Math.floor(lane.clientWidth * 0.7));
-    const leftButton = dom.primaryStage.querySelector("[data-sort-nav='left']");
-    const rightButton = dom.primaryStage.querySelector("[data-sort-nav='right']");
-    if (leftButton) {
-      leftButton.addEventListener("click", () => {
-        lane.scrollBy({ left: -step, behavior: "smooth" });
-      });
+
+    if (lane.dataset.scrollEnhanced === "true") {
+      return;
     }
-    if (rightButton) {
-      rightButton.addEventListener("click", () => {
-        lane.scrollBy({ left: step, behavior: "smooth" });
-      });
-    }
+    lane.dataset.scrollEnhanced = "true";
+
+    lane.addEventListener("wheel", (event) => {
+      if (event.deltaY === 0) {
+        return;
+      }
+      lane.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+
+    let dragging = false;
+    let startX = 0;
+    let startLeft = 0;
+
+    lane.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      startX = event.clientX;
+      startLeft = lane.scrollLeft;
+      lane.classList.add("dragging");
+      lane.setPointerCapture(event.pointerId);
+    });
+
+    lane.addEventListener("pointermove", (event) => {
+      if (!dragging) {
+        return;
+      }
+      const delta = event.clientX - startX;
+      lane.scrollLeft = startLeft - delta;
+    });
+
+    const endDrag = (event) => {
+      if (!dragging) {
+        return;
+      }
+      dragging = false;
+      lane.classList.remove("dragging");
+      if (lane.hasPointerCapture(event.pointerId)) {
+        lane.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    lane.addEventListener("pointerup", endDrag);
+    lane.addEventListener("pointercancel", endDrag);
   }
 
   function buildSummaryMarkup(step, activeFrame, state) {

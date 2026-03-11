@@ -19,7 +19,7 @@ from .code_analysis import analyze_code_structures
 from .structure_detection import StructureDetector
 
 USER_FILENAME = "<visualizer>"
-MAX_ITEMS = 8
+MAX_ITEMS = 256
 MAX_DEPTH = 3
 MAX_REPR_LENGTH = 96
 
