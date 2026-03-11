@@ -3,6 +3,7 @@
   window.Visualizer.renderers = window.Visualizer.renderers || {};
 
   const utils = window.Visualizer.utils;
+  let idleSearchQuery = "";
   const structureGuides = [
     {
       label: "STACK",
@@ -31,11 +32,13 @@
   ];
 
   function renderIdle(dom) {
+    idleSearchQuery = "";
     dom.stageTitle.textContent = "시각화 가능한 자료 구조";
     dom.stageCaption.textContent = "실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.";
     dom.primaryViewLabel.textContent = "GUIDE";
     dom.primaryStage.className = "visual-stage";
     dom.primaryStage.innerHTML = buildStructureGuideMarkup();
+    attachGuideSearch(dom);
     return "summary";
   }
 
@@ -687,13 +690,28 @@
   }
 
   function buildStructureGuideMarkup() {
+    const normalizedQuery = normalizeGuideSearchQuery(idleSearchQuery);
     return `
       <div class="stage-scroll structure-guide">
-        <div class="summary-grid structure-guide-grid">
+        <div class="structure-guide-search">
+          <input
+            type="search"
+            class="structure-guide-search-input"
+            placeholder="제목이나 내용으로 검색"
+            aria-label="시각화 가능한 자료 구조 검색"
+            value="${utils.escapeHtml(idleSearchQuery)}"
+            data-guide-search-input
+          />
+        </div>
+        <div class="summary-grid structure-guide-grid" data-guide-grid>
           ${structureGuides
             .map(
               (item) => `
-                <article class="summary-card guide-card">
+                <article
+                  class="summary-card guide-card${guideMatchesQuery(item, normalizedQuery) ? "" : " hidden"}"
+                  data-guide-card
+                  data-search-text="${utils.escapeHtml(buildGuideSearchText(item))}"
+                >
                   <span class="summary-label">${utils.escapeHtml(item.label)}</span>
                   <strong>${utils.escapeHtml(item.title)}</strong>
                   <p><span class="guide-pattern">${utils.escapeHtml(item.pattern)}</span> ${utils.escapeHtml(item.description)}</p>
@@ -702,11 +720,76 @@
             )
             .join("")}
         </div>
+        <div class="structure-guide-empty${hasGuideMatches(normalizedQuery) ? " hidden" : ""}" data-guide-empty>
+          검색 결과가 없습니다. 다른 키워드로 다시 찾아보세요.
+        </div>
         <div class="structure-guide-note">
           재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
         </div>
       </div>
     `;
+  }
+
+  function attachGuideSearch(dom) {
+    const searchInput = dom.primaryStage.querySelector("[data-guide-search-input]");
+    if (!searchInput) {
+      return;
+    }
+    searchInput.addEventListener("input", (event) => {
+      idleSearchQuery = event.target.value || "";
+      filterStructureGuideCards(dom.primaryStage, idleSearchQuery);
+    });
+    filterStructureGuideCards(dom.primaryStage, idleSearchQuery);
+  }
+
+  function filterStructureGuideCards(stage, query) {
+    const normalizedQuery = normalizeGuideSearchQuery(query);
+    const cards = stage.querySelectorAll("[data-guide-card]");
+    let visibleCount = 0;
+
+    cards.forEach((card) => {
+      const matched = !normalizedQuery || card.dataset.searchText.includes(normalizedQuery);
+      card.classList.toggle("hidden", !matched);
+      if (matched) {
+        visibleCount += 1;
+      }
+    });
+
+    const grid = stage.querySelector("[data-guide-grid]");
+    const empty = stage.querySelector("[data-guide-empty]");
+    if (grid) {
+      grid.classList.toggle("hidden", visibleCount === 0);
+    }
+    if (empty) {
+      empty.classList.toggle("hidden", visibleCount !== 0);
+    }
+  }
+
+  function hasGuideMatches(normalizedQuery) {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return structureGuides.some((item) => guideMatchesQuery(item, normalizedQuery));
+  }
+
+  function guideMatchesQuery(item, normalizedQuery) {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return buildGuideSearchText(item).includes(normalizedQuery);
+  }
+
+  function buildGuideSearchText(item) {
+    return normalizeGuideSearchQuery(
+      [item.label, item.title, item.pattern, item.description].join(" "),
+    );
+  }
+
+  function normalizeGuideSearchQuery(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function buildGraphMarkup(graph) {

@@ -22,7 +22,13 @@ def visualize():
                 {
                     "ok": False,
                     "error": "시각화할 파이썬 코드를 입력하세요.",
+                    "display_error": (
+                        "실행할 Python 코드를 먼저 입력해 주세요. 코드 입력창에 "
+                        "한 줄 이상 작성한 뒤 다시 실행해 보세요."
+                    ),
                     "steps": [],
+                    "stdout": "",
+                    "stdin": stdin,
                     "analysis": {
                         "structures": [],
                         "intent_map": {},

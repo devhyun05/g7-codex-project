@@ -17,6 +17,7 @@
     return {
       ok: true,
       error: null,
+      displayError: null,
       stdout: "",
       stdin,
       analysis: createAnalysis(),

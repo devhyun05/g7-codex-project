@@ -18,6 +18,7 @@
       payload = {
         ok: false,
         error: "서버 응답을 해석하지 못했습니다.",
+        display_error: "서버 응답 형식을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.",
         steps: [],
         stdout: "",
         stdin,

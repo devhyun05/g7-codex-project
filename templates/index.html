@@ -12,7 +12,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css', v='20260311-6') }}"
+      href="{{ url_for('static', filename='css/styles.css', v='20260311-9') }}"
     />
     <link
       rel="stylesheet"
@@ -27,7 +27,7 @@
     <div class="page-shell">
       <header class="topbar">
         <div class="brand">
-          <h1>Python Flow Visualizer</h1>
+          <h1 id="home-button" class="brand-home" role="button" tabindex="0" aria-label="초기 화면으로 이동">Python Flow Visualizer</h1>
         </div>
         <div class="toolbar">
           <div class="transport-controls">
@@ -111,7 +111,7 @@
             </div>
           </section>
 
-          <section class="panel panel-secondary">
+          <section id="output-panel" class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
                 <h2 id="output-panel-title">출력</h2>
@@ -150,27 +150,39 @@
             </div>
             <div id="primary-stage" class="visual-stage">
               <div class="stage-scroll structure-guide">
-                <div class="summary-grid structure-guide-grid">
-                  <article class="summary-card guide-card">
+                <div class="structure-guide-search">
+                  <input
+                    type="search"
+                    class="structure-guide-search-input"
+                    placeholder="제목이나 내용으로 검색"
+                    aria-label="시각화 가능한 자료 구조 검색"
+                    data-guide-search-input
+                  />
+                </div>
+                <div class="summary-grid structure-guide-grid" data-guide-grid>
+                  <article class="summary-card guide-card" data-guide-card data-search-text="stack 스택 append() + pop() 흐름을 top 중심으로 표시합니다.">
                     <span class="summary-label">STACK</span>
                     <strong>스택</strong>
                     <p><span class="guide-pattern">append() + pop()</span> 흐름을 top 중심으로 표시합니다.</p>
                   </article>
-                  <article class="summary-card guide-card">
+                  <article class="summary-card guide-card" data-guide-card data-search-text="queue 큐 deque / popleft() / pop(0) 패턴을 front와 back으로 구분합니다.">
                     <span class="summary-label">QUEUE</span>
                     <strong>큐</strong>
                     <p><span class="guide-pattern">deque / popleft() / pop(0)</span> 패턴을 front와 back으로 구분합니다.</p>
                   </article>
-                  <article class="summary-card guide-card">
+                  <article class="summary-card guide-card" data-guide-card data-search-text="tree 트리 left / right / children 관계를 노드 구조로 정리합니다.">
                     <span class="summary-label">TREE</span>
                     <strong>트리</strong>
                     <p><span class="guide-pattern">left / right / children</span> 관계를 노드 구조로 정리합니다.</p>
                   </article>
-                  <article class="summary-card guide-card">
+                  <article class="summary-card guide-card" data-guide-card data-search-text="graph 그래프 인접 리스트 / 인접 딕셔너리 연결과 방문 상태를 보여줍니다.">
                     <span class="summary-label">GRAPH</span>
                     <strong>그래프</strong>
                     <p><span class="guide-pattern">인접 리스트 / 인접 딕셔너리</span>를 기반으로 연결과 방문 상태를 보여줍니다.</p>
                   </article>
+                </div>
+                <div class="structure-guide-empty hidden" data-guide-empty>
+                  검색 결과가 없습니다. 다른 키워드로 다시 찾아보세요.
                 </div>
                 <div class="structure-guide-note">
                   재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
@@ -179,7 +191,7 @@
             </div>
           </section>
 
-          <section class="panel panel-secondary">
+          <section id="explanation-panel" class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
                 <h2>코드 설명</h2>
@@ -195,15 +207,15 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-7') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-7') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-8') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-10') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-7') }}"></script>
     <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-6') }}"></script>
     <script src="{{ url_for('static', filename='js/renderers/flow_sidebar.js', v='20260311-5') }}"></script>
     <script src="{{ url_for('static', filename='js/layout/splitter.js', v='20260311-6') }}"></script>
-    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-10') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js', v='20260311-6') }}"></script>
   </body>
 </html>

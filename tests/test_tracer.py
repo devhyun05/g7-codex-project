@@ -21,7 +21,16 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertGreaterEqual(len(result["steps"]), 4)
         self.assertEqual(result["stdout"].strip(), "3")
+        self.assertIsNone(result["display_error"])
         self.assertIn("x", result["steps"][-1]["globals"])
+
+    def test_formats_syntax_error_with_friendly_display_message(self):
+        result = self.tracer.trace("if True\n    print(1)\n")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("SyntaxError", result["error"])
+        self.assertIn("문법 오류", result["display_error"])
+        self.assertIn("1번째 줄", result["display_error"])
 
     def test_builds_recursive_call_tree_for_dfs(self):
         result = self.tracer.trace(
@@ -59,6 +68,38 @@ class ExecutionTracerTest(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("blocked", result["error"])
+        self.assertIn("허용되지 않은", result["display_error"])
+
+    def test_formats_missing_input_as_friendly_display_message(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "first = input()",
+                    "second = input()",
+                    "print(first, second)",
+                ]
+            ),
+            stdin="1\n",
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertIn("EOFError", result["error"])
+        self.assertIn("입력 데이터가 부족", result["display_error"])
+
+    def test_formats_name_error_with_friendly_display_message(self):
+        result = self.tracer.trace("print(total)\n")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("NameError", result["error"])
+        self.assertIn("total", result["display_error"])
+        self.assertIn("정의", result["display_error"])
+
+    def test_formats_zero_division_with_friendly_display_message(self):
+        result = self.tracer.trace("print(1 / 0)\n")
+
+        self.assertFalse(result["ok"])
+        self.assertIn("ZeroDivisionError", result["error"])
+        self.assertIn("0으로 나누", result["display_error"])
 
     def test_supports_stdin_input(self):
         result = self.tracer.trace(
