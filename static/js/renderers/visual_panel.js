@@ -3,22 +3,73 @@
   window.Visualizer.renderers = window.Visualizer.renderers || {};
 
   const utils = window.Visualizer.utils;
+  let idleSearchQuery = "";
+  const linkedListViewportState = {
+    nodeIds: [],
+  };
+  const structureGuides = [
+    {
+      label: "STACK",
+      title: "스택",
+      pattern: "append() + pop()",
+      description: "흐름을 top 중심으로 표시합니다.",
+    },
+    {
+      label: "QUEUE",
+      title: "큐",
+      pattern: "deque / popleft() / pop(0)",
+      description: "패턴을 front와 back으로 구분합니다.",
+    },
+    {
+      label: "TREE",
+      title: "트리",
+      pattern: "left / right / children",
+      description: "관계를 노드 구조로 정리합니다.",
+    },
+    {
+      label: "GRAPH",
+      title: "그래프",
+      pattern: "인접 리스트 / 인접 딕셔너리",
+      description: "연결과 방문 상태를 보여줍니다.",
+    },
+    {
+      label: "LIST",
+      title: "연결 리스트",
+      pattern: "head / next / prev",
+      description: "노드 연결과 현재 위치를 화살표로 표시합니다.",
+    },
+  ];
 
-  function renderIdle(dom, message) {
-    dom.stageTitle.textContent = "주 시각화";
-    dom.stageCaption.textContent =
-      message || "코드에서 감지한 자료구조를 기준으로 가장 알맞은 시각화를 자동 선택합니다.";
-    dom.primaryViewLabel.textContent = "SUMMARY";
-    dom.primaryStage.className = "visual-stage empty-state";
-    dom.primaryStage.textContent = "실행 결과가 여기에 표시됩니다.";
+  function renderIdle(dom) {
+    resetLinkedListViewportState();
+    idleSearchQuery = "";
+    dom.stageTitle.textContent = "시각화 가능한 자료 구조";
+    dom.stageCaption.textContent = "실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.";
+    dom.primaryViewLabel.textContent = "GUIDE";
+    dom.primaryStage.className = "visual-stage";
+    dom.primaryStage.innerHTML = buildStructureGuideMarkup();
+    attachGuideSearch(dom);
     return "summary";
   }
 
   function render(dom, state, step, activeFrame) {
-    const view = detectPrimaryView(step);
+    const sortingState = extractSortingState(step, state);
+    const linkedListState = extractLinkedListState(step, state);
+    const view = detectPrimaryView(step, state, sortingState, linkedListState);
     dom.primaryViewLabel.textContent = utils.formatViewLabel(view);
 
+    if (view === "sorting") {
+      resetLinkedListViewportState();
+      dom.stageTitle.textContent = "정렬 시각화";
+      dom.stageCaption.textContent = "정렬 대상 배열의 값 변화를 막대 그래프로 보여줍니다.";
+      dom.primaryStage.className = "visual-stage";
+      dom.primaryStage.innerHTML = buildSortingMarkup(sortingState);
+      attachSortingInteractions(dom);
+      return view;
+    }
+
     if (view === "graph") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "그래프 흐름";
       dom.stageCaption.textContent = "코드에서 감지한 인접 구조를 그래프로 해석해 현재 노드와 방문 상태를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
@@ -27,6 +78,7 @@
     }
 
     if (view === "data-tree") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "트리 구조";
       dom.stageCaption.textContent = "left / right 또는 children 관계를 기반으로 트리를 구성했습니다.";
       dom.primaryStage.className = "visual-stage";
@@ -34,7 +86,28 @@
       return view;
     }
 
+    if (view === "linked-list") {
+      dom.stageTitle.textContent = "연결 리스트";
+      dom.stageCaption.textContent = !linkedListState
+        ? "연결된 노드 체인을 찾는 중입니다. 호출 트리 대신 리스트 시각화를 유지합니다."
+        : linkedListState.list_type === "doubly"
+          ? "doubly linked list로 감지되어 next/prev 포인터 연결을 함께 표시합니다."
+          : "singly linked list로 감지되어 next 포인터 연결을 표시합니다.";
+      dom.primaryStage.className = "visual-stage";
+      const focus = linkedListState ? resolveLinkedListFocus(linkedListState) : null;
+      dom.primaryStage.innerHTML = linkedListState
+        ? buildLinkedListMarkup(linkedListState, focus ? focus.id : null)
+        : buildLinkedListWaitingMarkup();
+      if (linkedListState) {
+        scrollLinkedListLane(dom, linkedListState, focus);
+      } else {
+        resetLinkedListViewportState();
+      }
+      return view;
+    }
+
     if (view === "stack") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "스택 상태";
       dom.stageCaption.textContent = "append + pop 흐름을 스택으로 해석해 top을 강조했습니다.";
       dom.primaryStage.className = "visual-stage";
@@ -43,6 +116,7 @@
     }
 
     if (view === "queue") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "큐 상태";
       dom.stageCaption.textContent = "deque / pop(0) 패턴을 큐로 해석해 front와 back을 구분했습니다.";
       dom.primaryStage.className = "visual-stage";
@@ -51,8 +125,18 @@
     }
 
     if (view === "call-tree") {
+      resetLinkedListViewportState();
+      const sortingIntent = Boolean(
+        state &&
+          state.runResult &&
+          state.runResult.analysis &&
+          state.runResult.analysis.intents &&
+          state.runResult.analysis.intents.sorting,
+      );
       dom.stageTitle.textContent = "호출 트리";
-      dom.stageCaption.textContent = "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
+      dom.stageCaption.textContent = sortingIntent
+        ? "정렬 알고리즘 실행으로 판단되어 Visualgo처럼 호출 트리를 우선 보여줍니다."
+        : "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree);
       return view;
@@ -64,10 +148,30 @@
       : "오류가 있어도 가능한 범위의 실행 흐름을 유지합니다.";
     dom.primaryStage.className = "visual-stage";
     dom.primaryStage.innerHTML = buildSummaryMarkup(step, activeFrame, state);
+    resetLinkedListViewportState();
     return view;
   }
 
-  function detectPrimaryView(step) {
+  function detectPrimaryView(step, state, sortingState, linkedListState) {
+    const linkedListIntent = hasLinkedListIntent(step, state);
+    const sortingIntent = hasSortingIntent(state);
+
+    if (linkedListState) {
+      return "linked-list";
+    }
+
+    if (linkedListIntent && !sortingIntent) {
+      return "linked-list";
+    }
+
+    if (shouldPreferSortingBars(step, state, sortingState)) {
+      return "sorting";
+    }
+
+    if (shouldPreferSortingCallTree(step, state, linkedListState)) {
+      return "call-tree";
+    }
+
     if (step && step.graph && Array.isArray(step.graph.nodes) && step.graph.nodes.length) {
       return "graph";
     }
@@ -94,6 +198,572 @@
     }
 
     return "summary";
+  }
+
+  function shouldPreferSortingCallTree(step, state, linkedListState) {
+    if (linkedListState || hasLinkedListIntent(step, state)) {
+      return false;
+    }
+    if (!step || !step.call_tree || !Array.isArray(step.call_tree.children)) {
+      return false;
+    }
+    if (!step.call_tree.children.length) {
+      return false;
+    }
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    return Boolean(intents && intents.sorting);
+  }
+
+  function shouldPreferSortingBars(step, state, sortingState) {
+    if (state && hasLinkedListIntent(step, state) && !hasSortingIntent(state)) {
+      return false;
+    }
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    const stackTop = step && Array.isArray(step.stack) && step.stack.length
+      ? step.stack[step.stack.length - 1]
+      : null;
+    const stackLooksSorting = Boolean(
+      stackTop &&
+        typeof stackTop.name === "string" &&
+        stackTop.name.toLowerCase().includes("sort"),
+    );
+    if (!(intents && intents.sorting) && !stackLooksSorting) {
+      return false;
+    }
+    return Boolean(sortingState || stackLooksSorting || (intents && intents.sorting));
+  }
+
+  function extractLinkedListState(step, state) {
+    if (step && isConnectedLinkedList(step.structure)) {
+      return step.structure;
+    }
+    return findNearbyLinkedListState(state);
+  }
+
+  function findNearbyLinkedListState(state) {
+    if (!state || !Array.isArray(state.steps) || !state.steps.length) {
+      return null;
+    }
+
+    for (let index = state.currentIndex - 1; index >= 0; index -= 1) {
+      const previous = state.steps[index];
+      if (previous && isConnectedLinkedList(previous.structure)) {
+        return previous.structure;
+      }
+    }
+    return null;
+  }
+
+  function isConnectedLinkedList(structure) {
+    if (!structure || structure.kind !== "linked-list") {
+      return false;
+    }
+    const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+    if (nodes.length < 2) {
+      return false;
+    }
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    return nodes.some(
+      (node) =>
+        (node.next_id && nodeIds.has(node.next_id)) ||
+        (node.prev_id && nodeIds.has(node.prev_id)),
+    );
+  }
+
+  function hasLinkedListIntent(step, state) {
+    if (step && step.structure && step.structure.kind === "linked-list") {
+      return true;
+    }
+    const analysisStructures = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.structures
+      : [];
+    if (Array.isArray(analysisStructures) && analysisStructures.some((item) => item.kind === "linked-list")) {
+      return true;
+    }
+    return Boolean(
+      state &&
+        Array.isArray(state.steps) &&
+        state.steps.some((item) => item && item.structure && item.structure.kind === "linked-list"),
+    );
+  }
+
+  function hasSortingIntent(state) {
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    return Boolean(intents && intents.sorting);
+  }
+
+  function extractSortingState(step, state) {
+    const fromCurrent = findSortingStateInStep(step, state, true);
+    if (fromCurrent) {
+      return fromCurrent;
+    }
+
+    const nearby = findNearbySortingState(state);
+    if (nearby) {
+      return nearby;
+    }
+    return null;
+  }
+
+  function findSortingStateInStep(step, state, includeDiff) {
+    if (!step) {
+      return null;
+    }
+
+    const topFrame = step.stack && step.stack.length
+      ? step.stack[step.stack.length - 1]
+      : null;
+    const localCandidate = topFrame ? findNumericListCandidate(topFrame.locals, "locals") : null;
+    const globalCandidate = findNumericListCandidate(step.globals, "globals");
+    const candidate = pickBetterCandidate(localCandidate, globalCandidate);
+    if (!candidate) {
+      return null;
+    }
+
+    return {
+      ...candidate,
+      changedIndices: includeDiff
+        ? detectChangedIndices(
+            state && Array.isArray(state.steps) && state.currentIndex > 0
+              ? findCandidateValues(state.steps[state.currentIndex - 1], candidate.scope, candidate.name)
+              : null,
+            candidate.compareValues,
+          )
+        : [],
+      sortedIndices: detectSortedIndices(
+        candidate.compareValues,
+        getSortingOrder(state),
+        topFrame ? topFrame.locals : null,
+      ),
+    };
+  }
+
+  function findNearbySortingState(state) {
+    if (!state || !Array.isArray(state.steps) || !state.steps.length) {
+      return null;
+    }
+
+    for (let offset = 1; offset < state.steps.length; offset += 1) {
+      const leftIndex = state.currentIndex - offset;
+      if (leftIndex >= 0) {
+        const leftState = findSortingStateInStep(state.steps[leftIndex], state, false);
+        if (leftState) {
+          return leftState;
+        }
+      }
+
+      const rightIndex = state.currentIndex + offset;
+      if (rightIndex < state.steps.length) {
+        const rightState = findSortingStateInStep(state.steps[rightIndex], state, false);
+        if (rightState) {
+          return rightState;
+        }
+      }
+    }
+    return null;
+  }
+
+  function pickBetterCandidate(left, right) {
+    if (!left) {
+      return right;
+    }
+    if (!right) {
+      return left;
+    }
+    if (right.values.length > left.values.length) {
+      return right;
+    }
+    return left;
+  }
+
+  function findCandidateValues(step, scope, name) {
+    if (!step) {
+      return null;
+    }
+    let source = null;
+    if (scope === "locals") {
+      const topFrame = step.stack && step.stack.length
+        ? step.stack[step.stack.length - 1]
+        : null;
+      source = topFrame ? topFrame.locals : null;
+    } else {
+      source = step.globals;
+    }
+    if (!source || !source[name]) {
+      return null;
+    }
+    const parsed = parseNumericList(name, source[name], scope);
+    return parsed ? parsed.compareValues : null;
+  }
+
+  function findNumericListCandidate(namespace, scope) {
+    if (!namespace) {
+      return null;
+    }
+
+    let best = null;
+    Object.entries(namespace).forEach(([name, value]) => {
+      const parsed = parseNumericList(name, value, scope);
+      if (!parsed) {
+        return;
+      }
+      if (!best || parsed.values.length > best.values.length) {
+        best = parsed;
+      }
+    });
+    return best;
+  }
+
+  function parseNumericList(name, value, scope) {
+    if (
+      !value ||
+      !["list", "tuple"].includes(value.type) ||
+      !Array.isArray(value.items) ||
+      value.items.length < 2
+    ) {
+      return null;
+    }
+
+    const values = [];
+    const labels = [];
+    const compareValues = [];
+    let allNumeric = true;
+
+    for (const item of value.items) {
+      if (!item) {
+        return null;
+      }
+
+      const rawValue = item.value;
+      const numericValue = normalizeNumericValue(rawValue);
+
+      if (numericValue === null) {
+        allNumeric = false;
+        if (
+          typeof rawValue !== "string" &&
+          typeof rawValue !== "number" &&
+          typeof rawValue !== "boolean"
+        ) {
+          return null;
+        }
+      } else {
+        values.push(numericValue);
+      }
+      labels.push(String(rawValue));
+      compareValues.push(rawValue);
+    }
+
+    let displayValues = values;
+    if (!allNumeric) {
+      displayValues = rankValues(labels);
+    }
+
+    return {
+      name,
+      scope,
+      values: displayValues,
+      labels,
+      compareValues,
+      min: Math.min(...displayValues),
+      max: Math.max(...displayValues),
+    };
+  }
+
+  function normalizeNumericValue(value) {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  function rankValues(labels) {
+    const unique = Array.from(new Set(labels)).sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }),
+    );
+    const rankMap = new Map(unique.map((label, index) => [label, index + 1]));
+    return labels.map((label) => rankMap.get(label) || 1);
+  }
+
+  function detectChangedIndices(previous, current) {
+    if (!Array.isArray(previous) || previous.length !== current.length) {
+      return [];
+    }
+    const changed = [];
+    for (let index = 0; index < current.length; index += 1) {
+      if (previous[index] !== current[index]) {
+        changed.push(index);
+      }
+    }
+    return changed;
+  }
+
+  function getSortingOrder(state) {
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    if (!intents || !intents.sorting_order) {
+      return "unknown";
+    }
+    return intents.sorting_order;
+  }
+
+  function detectSortedIndices(values, sortingOrder, frameLocals) {
+    if (!Array.isArray(values) || values.length < 2) {
+      return [];
+    }
+
+    const byPass = detectBubblePassSortedIndices(values.length, sortingOrder, frameLocals);
+    if (byPass) {
+      return byPass;
+    }
+
+    if (sortingOrder === "asc") {
+      return detectAscBubbleFixedSuffix(values);
+    }
+    if (sortingOrder === "desc") {
+      return detectDescBubbleFixedPrefix(values);
+    }
+    return detectDefaultSortedIndices(values);
+  }
+
+  function detectBubblePassSortedIndices(length, sortingOrder, frameLocals) {
+    if (!frameLocals || typeof frameLocals !== "object") {
+      return null;
+    }
+    const pass = readNonNegativeInt(frameLocals.i);
+    if (pass === null) {
+      return null;
+    }
+    const capped = Math.max(0, Math.min(length, pass + 1));
+    if (sortingOrder === "asc") {
+      return makeRange(length - capped, length - 1);
+    }
+    if (sortingOrder === "desc") {
+      return makeRange(0, capped - 1);
+    }
+    return null;
+  }
+
+  function readNonNegativeInt(serializedValue) {
+    if (!serializedValue || typeof serializedValue !== "object") {
+      return null;
+    }
+    const raw = serializedValue.value;
+    if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0) {
+      return null;
+    }
+    return raw;
+  }
+
+  function detectAscBubbleFixedSuffix(values) {
+    for (let start = values.length - 1; start >= 0; start -= 1) {
+      if (!isNonDecreasing(values, start, values.length - 1)) {
+        continue;
+      }
+      if (!prefixLessOrEqualBoundary(values, start)) {
+        continue;
+      }
+      return makeRange(start, values.length - 1);
+    }
+    return [];
+  }
+
+  function detectDescBubbleFixedPrefix(values) {
+    for (let end = 0; end < values.length; end += 1) {
+      if (!isNonIncreasing(values, 0, end)) {
+        continue;
+      }
+      if (!suffixLessOrEqualBoundary(values, end)) {
+        continue;
+      }
+      return makeRange(0, end);
+    }
+    return [];
+  }
+
+  function detectDefaultSortedIndices(values) {
+    const sorted = [...values].sort(compareValuesAscending);
+    const indices = [];
+    for (let index = 0; index < values.length; index += 1) {
+      if (compareValuesAscending(values[index], sorted[index]) === 0) {
+        indices.push(index);
+      }
+    }
+    return indices;
+  }
+
+  function makeRange(start, end) {
+    if (start > end) {
+      return [];
+    }
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }
+
+  function isNonDecreasing(values, start, end) {
+    for (let i = start + 1; i <= end; i += 1) {
+      if (compareValuesAscending(values[i - 1], values[i]) > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function isNonIncreasing(values, start, end) {
+    for (let i = start + 1; i <= end; i += 1) {
+      if (compareValuesAscending(values[i - 1], values[i]) < 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function prefixLessOrEqualBoundary(values, start) {
+    if (start <= 0) {
+      return true;
+    }
+    const boundary = values[start];
+    for (let i = 0; i < start; i += 1) {
+      if (compareValuesAscending(values[i], boundary) > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function suffixLessOrEqualBoundary(values, end) {
+    if (end >= values.length - 1) {
+      return true;
+    }
+    const boundary = values[end];
+    for (let i = end + 1; i < values.length; i += 1) {
+      if (compareValuesAscending(values[i], boundary) > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function compareValuesAscending(left, right) {
+    const leftNumber = normalizeNumericValue(left);
+    const rightNumber = normalizeNumericValue(right);
+    if (leftNumber !== null && rightNumber !== null) {
+      if (leftNumber < rightNumber) {
+        return -1;
+      }
+      if (leftNumber > rightNumber) {
+        return 1;
+      }
+      return 0;
+    }
+    return String(left).localeCompare(String(right), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  function buildSortingMarkup(sortingState) {
+    if (!sortingState) {
+      return `
+        <div class="stage-scroll">
+          <div class="structure-board">정렬 대상 배열이 아직 보이지 않습니다. step을 이동해 배열이 생성된 지점을 확인하세요.</div>
+        </div>
+      `;
+    }
+
+    const range = sortingState.max - sortingState.min || 1;
+    return `
+      <div class="stage-scroll">
+        <div class="sorting-board">
+          <div class="sorting-bars">
+            ${sortingState.values
+              .map((value, index) => {
+                const normalized = ((value - sortingState.min) / range) * 100;
+                const height = Math.round(24 + (normalized / 100) * 200);
+                const changed = sortingState.changedIndices.includes(index);
+                const sorted = sortingState.sortedIndices.includes(index);
+                const statusClass = [changed ? "changed" : "", sorted ? "sorted" : ""]
+                  .filter(Boolean)
+                  .join(" ");
+                return `
+                  <div class="sorting-bar-wrap">
+                    <div class="sorting-bar ${statusClass}" style="height: ${height}px;">
+                      <span class="sorting-value">${utils.escapeHtml(sortingState.labels[index] || String(value))}</span>
+                    </div>
+                    <span class="sorting-index">${index}</span>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function attachSortingInteractions(dom) {
+    const lane = dom.primaryStage.querySelector(".sorting-bars");
+    if (!lane) {
+      return;
+    }
+
+    if (lane.dataset.scrollEnhanced === "true") {
+      return;
+    }
+    lane.dataset.scrollEnhanced = "true";
+
+    lane.addEventListener("wheel", (event) => {
+      if (event.deltaY === 0) {
+        return;
+      }
+      lane.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+
+    let dragging = false;
+    let startX = 0;
+    let startLeft = 0;
+
+    lane.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      startX = event.clientX;
+      startLeft = lane.scrollLeft;
+      lane.classList.add("dragging");
+      lane.setPointerCapture(event.pointerId);
+    });
+
+    lane.addEventListener("pointermove", (event) => {
+      if (!dragging) {
+        return;
+      }
+      const delta = event.clientX - startX;
+      lane.scrollLeft = startLeft - delta;
+    });
+
+    const endDrag = (event) => {
+      if (!dragging) {
+        return;
+      }
+      dragging = false;
+      lane.classList.remove("dragging");
+      if (lane.hasPointerCapture(event.pointerId)) {
+        lane.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    lane.addEventListener("pointerup", endDrag);
+    lane.addEventListener("pointercancel", endDrag);
   }
 
   function buildSummaryMarkup(step, activeFrame, state) {
@@ -133,6 +803,109 @@
         </div>
       </div>
     `;
+  }
+
+  function buildStructureGuideMarkup() {
+    const normalizedQuery = normalizeGuideSearchQuery(idleSearchQuery);
+    return `
+      <div class="stage-scroll structure-guide">
+        <div class="structure-guide-search">
+          <input
+            type="search"
+            class="structure-guide-search-input"
+            placeholder="제목이나 내용으로 검색"
+            aria-label="시각화 가능한 자료 구조 검색"
+            value="${utils.escapeHtml(idleSearchQuery)}"
+            data-guide-search-input
+          />
+        </div>
+        <div class="summary-grid structure-guide-grid" data-guide-grid>
+          ${structureGuides
+            .map(
+              (item) => `
+                <article
+                  class="summary-card guide-card${guideMatchesQuery(item, normalizedQuery) ? "" : " hidden"}"
+                  data-guide-card
+                  data-search-text="${utils.escapeHtml(buildGuideSearchText(item))}"
+                >
+                  <span class="summary-label">${utils.escapeHtml(item.label)}</span>
+                  <strong>${utils.escapeHtml(item.title)}</strong>
+                  <p><span class="guide-pattern">${utils.escapeHtml(item.pattern)}</span> ${utils.escapeHtml(item.description)}</p>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+        <div class="structure-guide-empty${hasGuideMatches(normalizedQuery) ? " hidden" : ""}" data-guide-empty>
+          검색 결과가 없습니다. 다른 키워드로 다시 찾아보세요.
+        </div>
+        <div class="structure-guide-note">
+          재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
+        </div>
+      </div>
+    `;
+  }
+
+  function attachGuideSearch(dom) {
+    const searchInput = dom.primaryStage.querySelector("[data-guide-search-input]");
+    if (!searchInput) {
+      return;
+    }
+    searchInput.addEventListener("input", (event) => {
+      idleSearchQuery = event.target.value || "";
+      filterStructureGuideCards(dom.primaryStage, idleSearchQuery);
+    });
+    filterStructureGuideCards(dom.primaryStage, idleSearchQuery);
+  }
+
+  function filterStructureGuideCards(stage, query) {
+    const normalizedQuery = normalizeGuideSearchQuery(query);
+    const cards = stage.querySelectorAll("[data-guide-card]");
+    let visibleCount = 0;
+
+    cards.forEach((card) => {
+      const matched = !normalizedQuery || card.dataset.searchText.includes(normalizedQuery);
+      card.classList.toggle("hidden", !matched);
+      if (matched) {
+        visibleCount += 1;
+      }
+    });
+
+    const grid = stage.querySelector("[data-guide-grid]");
+    const empty = stage.querySelector("[data-guide-empty]");
+    if (grid) {
+      grid.classList.toggle("hidden", visibleCount === 0);
+    }
+    if (empty) {
+      empty.classList.toggle("hidden", visibleCount !== 0);
+    }
+  }
+
+  function hasGuideMatches(normalizedQuery) {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return structureGuides.some((item) => guideMatchesQuery(item, normalizedQuery));
+  }
+
+  function guideMatchesQuery(item, normalizedQuery) {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return buildGuideSearchText(item).includes(normalizedQuery);
+  }
+
+  function buildGuideSearchText(item) {
+    return normalizeGuideSearchQuery(
+      [item.label, item.title, item.pattern, item.description].join(" "),
+    );
+  }
+
+  function normalizeGuideSearchQuery(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function buildGraphMarkup(graph) {
@@ -244,6 +1017,145 @@
         </div>
       </div>
     `;
+  }
+
+  function buildLinkedListMarkup(structure, focusNodeId) {
+    const nodes = structure.nodes || [];
+    const effectiveCurrentId = focusNodeId || (nodes.length ? nodes[nodes.length - 1].id : null);
+    const listType = structure.list_type === "doubly" ? "doubly" : "singly";
+    const nodeNameMap = new Map(
+      nodes.map((node, index) => [node.id, `N${index + 1}`]),
+    );
+    const nodeName = (nodeId) => {
+      if (!nodeId) {
+        return "null";
+      }
+      return nodeNameMap.get(nodeId) || "node";
+    };
+    return `
+      <div class="stage-scroll">
+        <div class="structure-board">
+          <div class="linked-list-lane ${listType}">
+            ${nodes.length
+              ? nodes
+                  .map((node) => {
+                    const label = nodeName(node.id);
+                    const boxClasses = [
+                      "linked-node-box",
+                      node.id === structure.head_id ? "head" : "",
+                      node.id === effectiveCurrentId ? "current" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    const connector = node.next_id
+                      ? `
+                        <div class="linked-connector ${listType}">
+                          <div class="forward">
+                            <span class="line"></span>
+                            <span class="arrow">▶</span>
+                          </div>
+                          ${listType === "doubly"
+                            ? `
+                              <div class="backward">
+                                <span class="line"></span>
+                                <span class="arrow">◀</span>
+                              </div>
+                            `
+                            : ""}
+                        </div>
+                      `
+                      : '<div class="linked-null">NULL</div>';
+                    const headBadge = node.id === structure.head_id
+                      ? '<span class="linked-badge head">HEAD</span>'
+                      : "";
+                    const currentBadge = node.id === effectiveCurrentId
+                      ? '<span class="linked-badge current">CUR</span>'
+                      : "";
+                    return `
+                      <div class="linked-segment">
+                        <div class="${boxClasses}" data-node-id="${utils.escapeHtml(node.id)}">
+                          <div class="linked-node-meta">
+                            <span class="linked-node-name">${utils.escapeHtml(label)}</span>
+                            ${headBadge}
+                            ${currentBadge}
+                          </div>
+                          <strong class="linked-node-value">${utils.escapeHtml(node.label)}</strong>
+                        </div>
+                        ${connector}
+                      </div>
+                    `;
+                  })
+                  .join("")
+              : '<div class="linked-node-box">empty</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildLinkedListWaitingMarkup() {
+    return `
+      <div class="stage-scroll">
+        <div class="structure-board">
+          연결된 노드가 아직 없습니다. 링크가 생기면 노드 값과 포인터 연결을 바로 표시합니다.
+        </div>
+      </div>
+    `;
+  }
+
+  function resetLinkedListViewportState() {
+    linkedListViewportState.nodeIds = [];
+  }
+
+  function resolveLinkedListFocus(structure) {
+    const nodeIds = Array.isArray(structure.nodes) ? structure.nodes.map((node) => node.id) : [];
+    if (!nodeIds.length) {
+      return { id: null, isNewNode: false };
+    }
+    const previousIds = linkedListViewportState.nodeIds || [];
+    const previousSet = new Set(previousIds);
+    const addedIds = nodeIds.filter((id) => !previousSet.has(id));
+    if (addedIds.length) {
+      return { id: addedIds[addedIds.length - 1], isNewNode: true };
+    }
+    return { id: nodeIds[nodeIds.length - 1], isNewNode: false };
+  }
+
+  function scrollLinkedListLane(dom, structure, focus) {
+    const lane = dom.primaryStage.querySelector(".linked-list-lane");
+    if (!lane) {
+      return;
+    }
+    const nodeIds = Array.isArray(structure.nodes) ? structure.nodes.map((node) => node.id) : [];
+    if (!nodeIds.length) {
+      return;
+    }
+
+    const targetId = focus && focus.id ? focus.id : nodeIds[nodeIds.length - 1];
+    const isNewNode = Boolean(focus && focus.isNewNode);
+    linkedListViewportState.nodeIds = [...nodeIds];
+    if (!targetId) {
+      return;
+    }
+
+    const targetNode = lane.querySelector(`[data-node-id="${targetId}"]`);
+    if (!targetNode) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const laneRect = lane.getBoundingClientRect();
+      const targetRect = targetNode.getBoundingClientRect();
+      const isOutOfView = targetRect.right > laneRect.right - 12 || targetRect.left < laneRect.left + 12;
+      if (!isOutOfView && !isNewNode) {
+        return;
+      }
+      const destination = Math.max(0, targetNode.offsetLeft - Math.max(16, (lane.clientWidth - targetNode.clientWidth) / 2));
+      lane.scrollTo({
+        left: destination,
+        behavior: "smooth",
+      });
+    });
   }
 
   function buildDataTreeMarkup(structure) {

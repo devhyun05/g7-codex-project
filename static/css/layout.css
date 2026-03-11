@@ -35,6 +35,21 @@
   font-size: clamp(1.05rem, 1.6vw, 1.35rem);
 }
 
+.brand-home {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+
+.brand-home:hover {
+  opacity: 0.76;
+}
+
+.brand-home:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
 .brand-subtitle {
   margin: 4px 0 0;
   color: var(--muted);
@@ -56,13 +71,23 @@
   gap: 12px;
   min-height: 0;
   overflow: hidden;
+  align-items: stretch;
 }
 
 .column-grid {
   display: grid;
-  grid-template-rows: minmax(0, 3.4fr) minmax(180px, 1fr);
+  grid-template-rows: minmax(0, 3.7fr) minmax(220px, 1.35fr);
   gap: 12px;
+  align-content: stretch;
   min-height: 0;
+}
+
+#workspace-right.column-grid {
+  grid-template-rows: minmax(0, 3.3fr) minmax(260px, 1.7fr);
+}
+
+.column-grid.single-panel {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .panel {

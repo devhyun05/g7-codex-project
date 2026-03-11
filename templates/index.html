@@ -12,36 +12,38 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css', v='20260311-4') }}"
+      href="{{ url_for('static', filename='css/styles.css', v='20260311-12') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/flow-sidebar.css', v='20260311-12') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/splitter.css', v='20260311-12') }}"
     />
   </head>
   <body>
     <div class="page-shell">
       <header class="topbar">
         <div class="brand">
-          <h1>Python Flow Visualizer</h1>
-          <p class="brand-subtitle">`app.py`는 진입점만 두고, 기능은 분리된 파일에서 처리합니다.</p>
+          <h1 id="home-button" class="brand-home" role="button" tabindex="0" aria-label="초기 화면으로 이동">Python Flow Visualizer</h1>
         </div>
         <div class="toolbar">
-          <div class="transport-controls">
-            <button id="prev-step" class="step-button" type="button" disabled>이전</button>
-            <button id="play-step" class="step-button" type="button" disabled>재생</button>
-            <button id="next-step" class="step-button" type="button" disabled>다음</button>
-          </div>
+          <button id="edit-code-button" class="ghost-button hidden" type="button">코드 수정</button>
           <button id="run-button" class="primary-button" type="button">실행 시작</button>
         </div>
       </header>
 
       <main class="workspace-grid">
-        <section class="column-grid">
+        <section id="workspace-left" class="column-grid">
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
                 <h2>현재 실행 코드</h2>
-                <p class="panel-caption">실행 중인 줄을 강조하고, 편집 모드에서는 입력 코드를 직접 작성합니다.</p>
               </div>
               <div class="panel-actions">
-                <div class="meta-pills">
+                <div id="editor-meta-pills" class="meta-pills">
                   <span class="meta-pill">
                     <span class="meta-key">step</span>
                     <strong id="step-counter">0 / 0</strong>
@@ -50,23 +52,22 @@
                     <span class="meta-key">func</span>
                     <strong id="function-pill">module</strong>
                   </span>
-                  <span class="meta-pill">
-                    <span class="meta-key">line</span>
-                    <strong id="line-pill">-</strong>
-                  </span>
                 </div>
-                <input
-                  id="step-slider"
-                  class="inline-slider"
-                  type="range"
-                  min="0"
-                  max="0"
-                  value="0"
-                  disabled
-                />
-                <button id="edit-code-button" class="ghost-button hidden" type="button">
-                  코드 수정
-                </button>
+                <span id="line-pill" class="line-readout hidden" aria-hidden="true">-</span>
+                <div class="slider-controls">
+                  <button id="play-step" class="step-button" type="button" disabled>재생</button>
+                  <button id="prev-step" class="step-button" type="button" disabled>이전</button>
+                  <input
+                    id="step-slider"
+                    class="inline-slider"
+                    type="range"
+                    min="0"
+                    max="0"
+                    value="0"
+                    disabled
+                  />
+                  <button id="next-step" class="step-button" type="button" disabled>다음</button>
+                </div>
               </div>
             </div>
 
@@ -95,16 +96,21 @@
               </div>
             </div>
 
-            <div id="code-viewer" class="code-viewer empty-state hidden">
-              실행 기록이 생성되면 코드 흐름이 여기에 표시됩니다.
+            <div id="trace-workspace" class="trace-workspace hidden">
+              <div id="code-viewer" class="code-viewer empty-state">
+                실행 기록이 생성되면 코드 흐름이 여기에 표시됩니다.
+              </div>
+              <aside id="flow-sidebar" class="flow-sidebar empty-state">
+                실행 기록이 생성되면 프레임 흐름이 여기에 표시됩니다.
+              </aside>
             </div>
           </section>
 
-          <section class="panel panel-secondary">
+          <section id="output-panel" class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
-                <h2>출력</h2>
-                <p class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
+                <h2 id="output-panel-title">출력</h2>
+                <p id="output-panel-caption" class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
               </div>
               <span id="output-status" class="chip">IDLE</span>
             </div>
@@ -114,26 +120,73 @@
           </section>
         </section>
 
-        <section class="column-grid">
+        <div
+          id="workspace-splitter"
+          class="workspace-splitter"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="패널 크기 조절"
+          tabindex="0"
+        ></div>
+
+        <section id="workspace-right" class="column-grid">
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
-                <h2 id="stage-title">주 시각화</h2>
+                <h2 id="stage-title">시각화 가능한 자료 구조</h2>
                 <p id="stage-caption" class="panel-caption">
-                  코드에서 감지한 자료구조를 기준으로 가장 알맞은 시각화를 자동 선택합니다.
+                  실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.
                 </p>
               </div>
               <div class="panel-actions">
                 <span id="event-label" class="chip">대기</span>
-                <span id="primary-view-label" class="chip chip-accent">SUMMARY</span>
+                <span id="primary-view-label" class="chip chip-accent">GUIDE</span>
               </div>
             </div>
-            <div id="primary-stage" class="visual-stage empty-state">
-              실행 결과가 여기에 표시됩니다.
+            <div id="primary-stage" class="visual-stage">
+              <div class="stage-scroll structure-guide">
+                <div class="structure-guide-search">
+                  <input
+                    type="search"
+                    class="structure-guide-search-input"
+                    placeholder="제목이나 내용으로 검색"
+                    aria-label="시각화 가능한 자료 구조 검색"
+                    data-guide-search-input
+                  />
+                </div>
+                <div class="summary-grid structure-guide-grid" data-guide-grid>
+                  <article class="summary-card guide-card" data-guide-card data-search-text="stack 스택 append() + pop() 흐름을 top 중심으로 표시합니다.">
+                    <span class="summary-label">STACK</span>
+                    <strong>스택</strong>
+                    <p><span class="guide-pattern">append() + pop()</span> 흐름을 top 중심으로 표시합니다.</p>
+                  </article>
+                  <article class="summary-card guide-card" data-guide-card data-search-text="queue 큐 deque / popleft() / pop(0) 패턴을 front와 back으로 구분합니다.">
+                    <span class="summary-label">QUEUE</span>
+                    <strong>큐</strong>
+                    <p><span class="guide-pattern">deque / popleft() / pop(0)</span> 패턴을 front와 back으로 구분합니다.</p>
+                  </article>
+                  <article class="summary-card guide-card" data-guide-card data-search-text="tree 트리 left / right / children 관계를 노드 구조로 정리합니다.">
+                    <span class="summary-label">TREE</span>
+                    <strong>트리</strong>
+                    <p><span class="guide-pattern">left / right / children</span> 관계를 노드 구조로 정리합니다.</p>
+                  </article>
+                  <article class="summary-card guide-card" data-guide-card data-search-text="graph 그래프 인접 리스트 / 인접 딕셔너리 연결과 방문 상태를 보여줍니다.">
+                    <span class="summary-label">GRAPH</span>
+                    <strong>그래프</strong>
+                    <p><span class="guide-pattern">인접 리스트 / 인접 딕셔너리</span>를 기반으로 연결과 방문 상태를 보여줍니다.</p>
+                  </article>
+                </div>
+                <div class="structure-guide-empty hidden" data-guide-empty>
+                  검색 결과가 없습니다. 다른 키워드로 다시 찾아보세요.
+                </div>
+                <div class="structure-guide-note">
+                  재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
+                </div>
+              </div>
             </div>
           </section>
 
-          <section class="panel panel-secondary">
+          <section id="explanation-panel" class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
                 <h2>코드 설명</h2>
@@ -148,14 +201,16 @@
       </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/flow_sidebar.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/layout/splitter.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-12') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='20260311-12') }}"></script>
   </body>
 </html>
