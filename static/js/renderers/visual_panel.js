@@ -47,11 +47,15 @@
 
     if (view === "linked-list") {
       dom.stageTitle.textContent = "연결 리스트";
-      dom.stageCaption.textContent = linkedListState && linkedListState.list_type === "doubly"
-        ? "doubly linked list로 감지되어 next/prev가 어떤 노드를 가리키는지 함께 표시합니다."
-        : "singly linked list로 감지되어 각 노드의 next 포인터가 가리키는 다음 노드를 표시합니다.";
+      dom.stageCaption.textContent = !linkedListState
+        ? "연결된 노드 체인을 찾는 중입니다. 호출 트리 대신 리스트 시각화를 유지합니다."
+        : linkedListState.list_type === "doubly"
+          ? "doubly linked list로 감지되어 next/prev 포인터 연결을 함께 표시합니다."
+          : "singly linked list로 감지되어 next 포인터 연결을 표시합니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildLinkedListMarkup(linkedListState);
+      dom.primaryStage.innerHTML = linkedListState
+        ? buildLinkedListMarkup(linkedListState)
+        : buildLinkedListWaitingMarkup();
       return view;
     }
 
@@ -98,7 +102,14 @@
   }
 
   function detectPrimaryView(step, state, sortingState, linkedListState) {
+    const linkedListIntent = hasLinkedListIntent(step, state);
+    const sortingIntent = hasSortingIntent(state);
+
     if (linkedListState) {
+      return "linked-list";
+    }
+
+    if (linkedListIntent && !sortingIntent) {
       return "linked-list";
     }
 
@@ -139,7 +150,7 @@
   }
 
   function shouldPreferSortingCallTree(step, state, linkedListState) {
-    if (linkedListState) {
+    if (linkedListState || hasLinkedListIntent(step, state)) {
       return false;
     }
     if (!step || !step.call_tree || !Array.isArray(step.call_tree.children)) {
@@ -180,6 +191,30 @@
       return step.structure;
     }
     return findNearbyLinkedListState(state);
+  }
+
+  function hasLinkedListIntent(step, state) {
+    if (step && step.structure && step.structure.kind === "linked-list") {
+      return true;
+    }
+    const analysisStructures = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.structures
+      : [];
+    if (Array.isArray(analysisStructures) && analysisStructures.some((item) => item.kind === "linked-list")) {
+      return true;
+    }
+    return Boolean(
+      state &&
+        Array.isArray(state.steps) &&
+        state.steps.some((item) => item && item.structure && item.structure.kind === "linked-list"),
+    );
+  }
+
+  function hasSortingIntent(state) {
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    return Boolean(intents && intents.sorting);
   }
 
   function findNearbyLinkedListState(state) {
@@ -898,6 +933,16 @@
                   .join("")
               : '<div class="linked-node-box">empty</div>'}
           </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildLinkedListWaitingMarkup() {
+    return `
+      <div class="stage-scroll">
+        <div class="structure-board">
+          연결된 노드가 아직 없습니다. 링크가 생기면 노드 값과 포인터 연결을 바로 표시합니다.
         </div>
       </div>
     `;
