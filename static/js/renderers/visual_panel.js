@@ -850,36 +850,53 @@
               ? nodes
                   .map((node) => {
                     const label = nodeName(node.id);
-                    const cardClasses = [
-                      "linked-node-card",
+                    const boxClasses = [
+                      "linked-node-box",
                       node.id === structure.head_id ? "head" : "",
                       node.id === structure.current_id ? "current" : "",
                     ]
                       .filter(Boolean)
                       .join(" ");
-                    const nextTarget = nodeName(node.next_id);
-                    const prevPointer = listType === "doubly"
-                      ? `<span class="linked-pointer prev">${utils.escapeHtml(label)}.prev → ${utils.escapeHtml(nodeName(node.prev_id))}</span>`
+                    const connector = node.next_id
+                      ? `
+                        <div class="linked-connector ${listType}">
+                          <div class="forward">
+                            <span class="line"></span>
+                            <span class="arrow">▶</span>
+                          </div>
+                          ${listType === "doubly"
+                            ? `
+                              <div class="backward">
+                                <span class="line"></span>
+                                <span class="arrow">◀</span>
+                              </div>
+                            `
+                            : ""}
+                        </div>
+                      `
+                      : '<div class="linked-null">NULL</div>';
+                    const headBadge = node.id === structure.head_id
+                      ? '<span class="linked-badge head">HEAD</span>'
                       : "";
-                    const arrow = node.next_id
-                      ? `<span class="linked-arrow ${listType}">${listType === "doubly" ? "⇄" : "→"}</span>`
+                    const currentBadge = node.id === structure.current_id
+                      ? '<span class="linked-badge current">CUR</span>'
                       : "";
                     return `
                       <div class="linked-segment">
-                        <div class="${cardClasses}">
-                          <span class="linked-node-name">${utils.escapeHtml(label)}</span>
-                          <strong>${utils.escapeHtml(node.label)}</strong>
-                          <div class="linked-pointer-list">
-                            <span class="linked-pointer next">${utils.escapeHtml(label)}.next → ${utils.escapeHtml(nextTarget)}</span>
-                            ${prevPointer}
+                        <div class="${boxClasses}">
+                          <div class="linked-node-meta">
+                            <span class="linked-node-name">${utils.escapeHtml(label)}</span>
+                            ${headBadge}
+                            ${currentBadge}
                           </div>
+                          <strong class="linked-node-value">${utils.escapeHtml(node.label)}</strong>
                         </div>
-                        ${arrow}
+                        ${connector}
                       </div>
                     `;
                   })
                   .join("")
-              : '<div class="linked-node-card">empty</div>'}
+              : '<div class="linked-node-box">empty</div>'}
           </div>
         </div>
       </div>
