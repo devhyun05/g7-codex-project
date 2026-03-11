@@ -8,6 +8,8 @@
   const codePanel = window.Visualizer.renderers.codePanel;
   const visualPanel = window.Visualizer.renderers.visualPanel;
   const explanationPanel = window.Visualizer.renderers.explanationPanel;
+  const flowSidebar = window.Visualizer.renderers.flowSidebar;
+  const splitterLayout = window.Visualizer.layout.splitter;
 
   let dom;
   let state;
@@ -15,6 +17,7 @@
   function initialize() {
     dom = domApi.getRefs();
     state = stateApi.createState();
+    splitterLayout.initialize(dom);
     bindEvents();
     dom.codeInput.value = state.code;
     dom.stdinInput.value = state.stdin;
@@ -50,6 +53,7 @@
     configureControls();
     updateHeader(null);
     visualPanel.renderIdle(dom, message);
+    flowSidebar.renderIdle(dom, message);
     codePanel.renderIdleOutput(dom, state.runResult.stdout, state.runResult.error);
     explanationPanel.render(dom, state, null, "summary");
   }
@@ -115,6 +119,7 @@
     const activeFrame = getActiveFrame(step);
     updateHeader(step);
     codePanel.renderCodeView(dom, state.code, step);
+    flowSidebar.render(dom, step);
     state.primaryView = visualPanel.render(dom, state, step, activeFrame);
     codePanel.renderOutput(
       dom,

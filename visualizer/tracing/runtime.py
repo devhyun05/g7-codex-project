@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import builtins
+import bisect
 import collections
 import contextlib
+import functools
 import heapq
 import inspect
 import io
 import itertools
 import math
+import operator
 import random
 import sys
 import time
 from dataclasses import dataclass
-from types import FrameType
+from types import FrameType, ModuleType, SimpleNamespace
 from typing import Any
 
 from .code_analysis import analyze_code_structures
@@ -30,18 +33,21 @@ class TraceLimitExceeded(RuntimeError):
 
 @dataclass
 class TraceConfig:
-    step_limit: int = 350
-    time_limit_seconds: float = 3.0
+    step_limit: int = 2000
+    time_limit_seconds: float = 5.0
 
 
 class ExecutionTracer:
     def __init__(self, config: TraceConfig | None = None):
         self.config = config or TraceConfig()
         self.allowed_modules = {
+            "bisect": bisect,
             "collections": collections,
+            "functools": functools,
             "heapq": heapq,
             "itertools": itertools,
             "math": math,
+            "operator": operator,
             "random": random,
         }
         self._reset_state("")
@@ -190,6 +196,16 @@ class ExecutionTracer:
         safe_builtins["input"] = self._safe_input
         return safe_builtins
 
+    def _build_safe_sys_module(self) -> ModuleType:
+        safe_sys = ModuleType("sys")
+        safe_sys.stdin = SimpleNamespace(readline=self._safe_stdin_readline)
+        safe_sys.stdout = self.stdout_buffer
+        safe_sys.stderr = self.stdout_buffer
+        safe_sys.setrecursionlimit = self._safe_setrecursionlimit
+        safe_sys.getrecursionlimit = lambda: 10_000
+        safe_sys.maxsize = sys.maxsize
+        return safe_sys
+
     def _safe_input(self, prompt: str = "") -> str:
         if prompt:
             self.stdout_buffer.write(str(prompt))
@@ -201,6 +217,21 @@ class ExecutionTracer:
         self.stdin_index += 1
         return line
 
+    def _safe_stdin_readline(self, size: int = -1) -> str:
+        if self.stdin_index >= len(self.stdin_lines):
+            return ""
+
+        line = self.stdin_lines[self.stdin_index]
+        self.stdin_index += 1
+        result = f"{line}\n"
+        if size is not None and size >= 0:
+            return result[:size]
+        return result
+
+    def _safe_setrecursionlimit(self, limit: int) -> None:
+        # Visualized code runs in a controlled environment, so this is a no-op.
+        _ = limit
+
     def _safe_import(
         self,
         name: str,
@@ -210,6 +241,8 @@ class ExecutionTracer:
         level: int = 0,
     ) -> Any:
         if level != 0 or name not in self.allowed_modules:
+            if name == "sys" and level == 0:
+                return self._build_safe_sys_module()
             raise ImportError(f"'{name}' import is blocked in this visualizer.")
         return self.allowed_modules[name]
 
@@ -269,6 +302,7 @@ class ExecutionTracer:
             "label": self._format_call_label(frame),
             "status": "running",
             "line": frame.f_lineno,
+            "locals": self._serialize_namespace(frame.f_locals),
             "children": [],
         }
         self.node_by_id[node_id] = node
@@ -289,6 +323,7 @@ class ExecutionTracer:
         if node_id:
             self.node_by_id[node_id]["line"] = frame.f_lineno
             self.node_by_id[node_id]["label"] = self._format_call_label(frame)
+            self.node_by_id[node_id]["locals"] = self._serialize_namespace(frame.f_locals)
         else:
             self.call_root["line"] = frame.f_lineno
 
@@ -303,6 +338,7 @@ class ExecutionTracer:
         node["return_value"] = self._short_repr(value)
         node["line"] = frame.f_lineno
         node["label"] = self._format_call_label(frame)
+        node["locals"] = self._serialize_namespace(frame.f_locals)
 
     def _register_exception(self, frame: FrameType, arg: Any) -> None:
         exc_type, exc_value, _ = arg
@@ -312,6 +348,7 @@ class ExecutionTracer:
             node["status"] = "exception"
             node["error"] = f"{exc_type.__name__}: {exc_value}"
             node["line"] = frame.f_lineno
+            node["locals"] = self._serialize_namespace(frame.f_locals)
 
     def _build_snapshot(self, frame: FrameType, event: str, arg: Any) -> dict[str, Any]:
         stack_frames = self._collect_user_stack(frame)
@@ -397,7 +434,7 @@ class ExecutionTracer:
             return {
                 "type": type(value).__name__,
                 "repr": self._short_repr(value),
-                "value": value,
+                "value": self._json_safe_value(value),
             }
 
         if inspect.isfunction(value):
@@ -483,6 +520,7 @@ class ExecutionTracer:
             "active": node["id"] in active_ids,
             "return_value": node.get("return_value"),
             "error": node.get("error"),
+            "locals": node.get("locals", {}),
             "children": [
                 self._snapshot_tree(child, active_ids)
                 for child in node.get("children", [])
@@ -554,3 +592,8 @@ class ExecutionTracer:
         if len(text) > MAX_REPR_LENGTH:
             return text[: MAX_REPR_LENGTH - 3] + "..."
         return text
+
+    def _json_safe_value(self, value: Any) -> Any:
+        if isinstance(value, float) and not math.isfinite(value):
+            return self._short_repr(value)
+        return value

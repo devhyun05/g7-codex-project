@@ -6,7 +6,7 @@
 
   function syncMode(dom, traceMode) {
     dom.editorWrap.classList.toggle("hidden", traceMode);
-    dom.codeViewer.classList.toggle("hidden", !traceMode);
+    dom.traceWorkspace.classList.toggle("hidden", !traceMode);
     dom.editCodeButton.classList.toggle("hidden", !traceMode);
   }
 
