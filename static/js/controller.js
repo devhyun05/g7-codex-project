@@ -49,7 +49,7 @@
     codePanel.syncMode(dom, false);
     configureControls();
     updateHeader(null);
-    visualPanel.renderIdle(dom, message);
+    visualPanel.renderIdle(dom);
     codePanel.renderIdleOutput(dom, state.runResult.stdout, state.runResult.error);
     explanationPanel.render(dom, state, null, "summary");
   }
@@ -133,11 +133,7 @@
     dom.stepCounter.textContent = stepText;
     dom.functionPill.textContent = activeFrame ? activeFrame.name : "module";
     dom.linePill.textContent = step && step.line ? String(step.line) : "-";
-    dom.eventLabel.textContent = step
-      ? utils.formatEvent(step.event)
-      : state.runResult.error
-        ? "error"
-        : "idle";
+    dom.eventLabel.textContent = step ? utils.formatEvent(step.event) : "idle";
   }
 
   function configureControls() {

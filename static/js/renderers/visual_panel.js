@@ -3,14 +3,39 @@
   window.Visualizer.renderers = window.Visualizer.renderers || {};
 
   const utils = window.Visualizer.utils;
+  const structureGuides = [
+    {
+      label: "STACK",
+      title: "스택",
+      pattern: "append() + pop()",
+      description: "흐름을 top 중심으로 표시합니다.",
+    },
+    {
+      label: "QUEUE",
+      title: "큐",
+      pattern: "deque / popleft() / pop(0)",
+      description: "패턴을 front와 back으로 구분합니다.",
+    },
+    {
+      label: "TREE",
+      title: "트리",
+      pattern: "left / right / children",
+      description: "관계를 노드 구조로 정리합니다.",
+    },
+    {
+      label: "GRAPH",
+      title: "그래프",
+      pattern: "인접 리스트 / 인접 딕셔너리",
+      description: "연결과 방문 상태를 보여줍니다.",
+    },
+  ];
 
-  function renderIdle(dom, message) {
-    dom.stageTitle.textContent = "주 시각화";
-    dom.stageCaption.textContent =
-      message || "코드에서 감지한 자료구조를 기준으로 가장 알맞은 시각화를 자동 선택합니다.";
-    dom.primaryViewLabel.textContent = "SUMMARY";
-    dom.primaryStage.className = "visual-stage empty-state";
-    dom.primaryStage.textContent = "실행 결과가 여기에 표시됩니다.";
+  function renderIdle(dom) {
+    dom.stageTitle.textContent = "시각화 가능한 자료 구조";
+    dom.stageCaption.textContent = "실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.";
+    dom.primaryViewLabel.textContent = "GUIDE";
+    dom.primaryStage.className = "visual-stage";
+    dom.primaryStage.innerHTML = buildStructureGuideMarkup();
     return "summary";
   }
 
@@ -130,6 +155,29 @@
             <strong>${stdinLines}</strong>
             <p>${utils.escapeHtml(stdinLines ? "입력 데이터를 함께 사용했습니다." : "input() 없이 실행했습니다.")}</p>
           </article>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildStructureGuideMarkup() {
+    return `
+      <div class="stage-scroll structure-guide">
+        <div class="summary-grid structure-guide-grid">
+          ${structureGuides
+            .map(
+              (item) => `
+                <article class="summary-card guide-card">
+                  <span class="summary-label">${utils.escapeHtml(item.label)}</span>
+                  <strong>${utils.escapeHtml(item.title)}</strong>
+                  <p><span class="guide-pattern">${utils.escapeHtml(item.pattern)}</span> ${utils.escapeHtml(item.description)}</p>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+        <div class="structure-guide-note">
+          재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
         </div>
       </div>
     `;

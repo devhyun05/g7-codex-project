@@ -3,11 +3,15 @@
   window.Visualizer.renderers = window.Visualizer.renderers || {};
 
   const utils = window.Visualizer.utils;
+  const defaultOutputCaption = "선택한 step 시점까지의 stdout과 오류를 보여줍니다.";
+  const errorOutputCaption = "실행에 실패한 이유를 보여줍니다.";
 
   function syncMode(dom, traceMode) {
     dom.editorWrap.classList.toggle("hidden", traceMode);
     dom.codeViewer.classList.toggle("hidden", !traceMode);
     dom.editCodeButton.classList.toggle("hidden", !traceMode);
+    dom.editorMetaPills.classList.toggle("hidden", !traceMode);
+    dom.editorWrap.classList.toggle("editor-idle", !traceMode);
   }
 
   function renderCodeView(dom, code, step) {
@@ -33,12 +37,18 @@
   }
 
   function renderOutput(dom, stdout, error) {
-    dom.outputStatus.textContent = error ? "ERROR" : stdout ? "STDOUT" : "IDLE";
-    dom.outputView.className = "support-body output-body";
-    dom.outputView.innerHTML = `
-      <pre class="stdout-pre">${utils.escapeHtml(stdout || "출력이 없습니다.")}</pre>
-      ${error ? `<div class="output-error">${utils.escapeHtml(error)}</div>` : ""}
-    `;
+    const hasError = Boolean(error);
+
+    dom.outputPanelTitle.textContent = hasError ? "에러 메시지" : "출력";
+    dom.outputPanelCaption.textContent = hasError ? errorOutputCaption : defaultOutputCaption;
+    dom.outputStatus.textContent = hasError ? "ERROR" : stdout ? "STDOUT" : "IDLE";
+    dom.outputStatus.classList.toggle("chip-error", hasError);
+    dom.outputView.className = hasError
+      ? "support-body output-body output-error-body"
+      : "support-body output-body";
+    dom.outputView.innerHTML = hasError
+      ? `<div class="output-error">${utils.escapeHtml(error)}</div>`
+      : `<pre class="stdout-pre">${utils.escapeHtml(stdout || "출력이 없습니다.")}</pre>`;
   }
 
   function renderIdleOutput(dom, stdout = "", error = null) {

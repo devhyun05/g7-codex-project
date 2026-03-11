@@ -48,6 +48,32 @@
   line-height: 1.5;
 }
 
+.guide-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.guide-pattern {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.76rem;
+}
+
+.structure-guide-note {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px dashed rgba(34, 29, 23, 0.16);
+  background: rgba(242, 235, 224, 0.55);
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .visual-caption {
   display: flex;
   flex-wrap: wrap;

@@ -12,7 +12,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css', v='20260311-4') }}"
+      href="{{ url_for('static', filename='css/styles.css', v='20260311-6') }}"
     />
   </head>
   <body>
@@ -20,7 +20,6 @@
       <header class="topbar">
         <div class="brand">
           <h1>Python Flow Visualizer</h1>
-          <p class="brand-subtitle">`app.py`는 진입점만 두고, 기능은 분리된 파일에서 처리합니다.</p>
         </div>
         <div class="toolbar">
           <div class="transport-controls">
@@ -38,10 +37,9 @@
             <div class="panel-head">
               <div>
                 <h2>현재 실행 코드</h2>
-                <p class="panel-caption">실행 중인 줄을 강조하고, 편집 모드에서는 입력 코드를 직접 작성합니다.</p>
               </div>
               <div class="panel-actions">
-                <div class="meta-pills">
+                <div id="editor-meta-pills" class="meta-pills">
                   <span class="meta-pill">
                     <span class="meta-key">step</span>
                     <strong id="step-counter">0 / 0</strong>
@@ -103,8 +101,8 @@
           <section class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
-                <h2>출력</h2>
-                <p class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
+                <h2 id="output-panel-title">출력</h2>
+                <p id="output-panel-caption" class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
               </div>
               <span id="output-status" class="chip">IDLE</span>
             </div>
@@ -118,18 +116,44 @@
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
-                <h2 id="stage-title">주 시각화</h2>
+                <h2 id="stage-title">시각화 가능한 자료 구조</h2>
                 <p id="stage-caption" class="panel-caption">
-                  코드에서 감지한 자료구조를 기준으로 가장 알맞은 시각화를 자동 선택합니다.
+                  실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.
                 </p>
               </div>
               <div class="panel-actions">
                 <span id="event-label" class="chip">대기</span>
-                <span id="primary-view-label" class="chip chip-accent">SUMMARY</span>
+                <span id="primary-view-label" class="chip chip-accent">GUIDE</span>
               </div>
             </div>
-            <div id="primary-stage" class="visual-stage empty-state">
-              실행 결과가 여기에 표시됩니다.
+            <div id="primary-stage" class="visual-stage">
+              <div class="stage-scroll structure-guide">
+                <div class="summary-grid structure-guide-grid">
+                  <article class="summary-card guide-card">
+                    <span class="summary-label">STACK</span>
+                    <strong>스택</strong>
+                    <p><span class="guide-pattern">append() + pop()</span> 흐름을 top 중심으로 표시합니다.</p>
+                  </article>
+                  <article class="summary-card guide-card">
+                    <span class="summary-label">QUEUE</span>
+                    <strong>큐</strong>
+                    <p><span class="guide-pattern">deque / popleft() / pop(0)</span> 패턴을 front와 back으로 구분합니다.</p>
+                  </article>
+                  <article class="summary-card guide-card">
+                    <span class="summary-label">TREE</span>
+                    <strong>트리</strong>
+                    <p><span class="guide-pattern">left / right / children</span> 관계를 노드 구조로 정리합니다.</p>
+                  </article>
+                  <article class="summary-card guide-card">
+                    <span class="summary-label">GRAPH</span>
+                    <strong>그래프</strong>
+                    <p><span class="guide-pattern">인접 리스트 / 인접 딕셔너리</span>를 기반으로 연결과 방문 상태를 보여줍니다.</p>
+                  </article>
+                </div>
+                <div class="structure-guide-note">
+                  재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
+                </div>
+              </div>
             </div>
           </section>
 
@@ -148,14 +172,14 @@
       </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='20260311-6') }}"></script>
   </body>
 </html>
