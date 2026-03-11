@@ -15,7 +15,7 @@ import random
 import sys
 import time
 from dataclasses import dataclass
-from types import FrameType, ModuleType, SimpleNamespace
+from types import FrameType, ModuleType
 from typing import Any
 
 from .code_analysis import analyze_code_structures
@@ -29,6 +29,29 @@ MAX_REPR_LENGTH = 96
 
 class TraceLimitExceeded(RuntimeError):
     pass
+
+
+class _SafeStdin:
+    def __init__(self, tracer: "ExecutionTracer"):
+        self._tracer = tracer
+
+    def readline(self, size: int = -1) -> str:
+        return self._tracer._safe_stdin_readline(size)
+
+    def read(self, size: int = -1) -> str:
+        return self._tracer._safe_stdin_read(size)
+
+    def readlines(self, hint: int = -1) -> list[str]:
+        return self._tracer._safe_stdin_readlines(hint)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> str:
+        line = self.readline()
+        if line == "":
+            raise StopIteration
+        return line
 
 
 @dataclass
@@ -105,8 +128,8 @@ class ExecutionTracer:
         self.code = code
         self.code_lines = code.splitlines()
         self.stdin = stdin
-        self.stdin_lines = stdin.splitlines()
-        self.stdin_index = 0
+        self.stdin_buffer = stdin or ""
+        self.stdin_cursor = 0
         self.steps: list[dict[str, Any]] = []
         self.stdout_buffer = io.StringIO()
         self.stdout = ""
@@ -203,7 +226,7 @@ class ExecutionTracer:
 
     def _build_safe_sys_module(self) -> ModuleType:
         safe_sys = ModuleType("sys")
-        safe_sys.stdin = SimpleNamespace(readline=self._safe_stdin_readline)
+        safe_sys.stdin = _SafeStdin(self)
         safe_sys.stdout = self.stdout_buffer
         safe_sys.stderr = self.stdout_buffer
         safe_sys.setrecursionlimit = self._safe_setrecursionlimit
@@ -215,23 +238,54 @@ class ExecutionTracer:
         if prompt:
             self.stdout_buffer.write(str(prompt))
 
-        if self.stdin_index >= len(self.stdin_lines):
+        line = self._safe_stdin_readline()
+        if line == "":
             raise EOFError("입력 데이터가 더 이상 없습니다.")
-
-        line = self.stdin_lines[self.stdin_index]
-        self.stdin_index += 1
-        return line
+        return line[:-1] if line.endswith("\n") else line
 
     def _safe_stdin_readline(self, size: int = -1) -> str:
-        if self.stdin_index >= len(self.stdin_lines):
+        if self.stdin_cursor >= len(self.stdin_buffer):
             return ""
 
-        line = self.stdin_lines[self.stdin_index]
-        self.stdin_index += 1
-        result = f"{line}\n"
+        newline_index = self.stdin_buffer.find("\n", self.stdin_cursor)
+        if newline_index == -1:
+            result = self.stdin_buffer[self.stdin_cursor :]
+        else:
+            result = self.stdin_buffer[self.stdin_cursor : newline_index + 1]
+
         if size is not None and size >= 0:
-            return result[:size]
+            sliced = result[:size]
+            self.stdin_cursor += len(sliced)
+            return sliced
+
+        self.stdin_cursor += len(result)
         return result
+
+    def _safe_stdin_read(self, size: int = -1) -> str:
+        if self.stdin_cursor >= len(self.stdin_buffer):
+            return ""
+        if size is None or size < 0:
+            result = self.stdin_buffer[self.stdin_cursor :]
+            self.stdin_cursor = len(self.stdin_buffer)
+            return result
+
+        end = min(len(self.stdin_buffer), self.stdin_cursor + size)
+        result = self.stdin_buffer[self.stdin_cursor : end]
+        self.stdin_cursor = end
+        return result
+
+    def _safe_stdin_readlines(self, hint: int = -1) -> list[str]:
+        lines: list[str] = []
+        total = 0
+        while True:
+            line = self._safe_stdin_readline()
+            if line == "":
+                break
+            lines.append(line)
+            total += len(line)
+            if hint is not None and hint > 0 and total >= hint:
+                break
+        return lines
 
     def _safe_setrecursionlimit(self, limit: int) -> None:
         # Visualized code runs in a controlled environment, so this is a no-op.
