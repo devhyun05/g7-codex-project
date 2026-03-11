@@ -3,6 +3,11 @@
   padding: 14px;
 }
 
+.visual-stage-idle {
+  flex: 1;
+  min-height: 0;
+}
+
 .stage-scroll {
   min-height: 100%;
   display: grid;

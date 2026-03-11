@@ -36,7 +36,7 @@
     dom.stageTitle.textContent = "시각화 가능한 자료 구조";
     dom.stageCaption.textContent = "실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.";
     dom.primaryViewLabel.textContent = "GUIDE";
-    dom.primaryStage.className = "visual-stage";
+    dom.primaryStage.className = "visual-stage visual-stage-idle";
     dom.primaryStage.innerHTML = buildStructureGuideMarkup();
     attachGuideSearch(dom);
     return "summary";
