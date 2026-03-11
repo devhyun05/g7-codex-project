@@ -29,9 +29,14 @@
     dom.prevStepButton.addEventListener("click", () => moveStep(-1));
     dom.nextStepButton.addEventListener("click", () => moveStep(1));
     dom.playStepButton.addEventListener("click", togglePlayback);
-    dom.editCodeButton.addEventListener("click", () => {
-      state.runResult = stateApi.createRunResult(dom.stdinInput.value);
-      resetEditorState();
+    dom.editCodeButton.addEventListener("click", returnToEditor);
+    dom.homeButton.addEventListener("click", returnToEditor);
+    dom.homeButton.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      returnToEditor();
     });
     dom.stepSlider.addEventListener("input", (event) => {
       state.currentIndex = Number(event.target.value);
@@ -44,6 +49,33 @@
     state.stdin = dom.stdinInput.value;
   }
 
+  function setClientRunError(error, displayError) {
+    state.runResult = stateApi.createRunResult(state.stdin);
+    state.runResult.ok = false;
+    state.runResult.error = error;
+    state.runResult.displayError = displayError;
+  }
+
+  function returnToEditor() {
+    state.runResult = stateApi.createRunResult(dom.stdinInput.value);
+    resetEditorState();
+  }
+
+  function syncIdlePanels() {
+    const showOutputPanel = Boolean(state.runResult.error || state.runResult.stdout);
+    dom.outputPanel.classList.toggle("hidden", !showOutputPanel);
+    dom.explanationPanel.classList.add("hidden");
+    dom.workspaceLeft.classList.toggle("single-panel", !showOutputPanel);
+    dom.workspaceRight.classList.add("single-panel");
+  }
+
+  function syncTracePanels() {
+    dom.outputPanel.classList.remove("hidden");
+    dom.explanationPanel.classList.remove("hidden");
+    dom.workspaceLeft.classList.remove("single-panel");
+    dom.workspaceRight.classList.remove("single-panel");
+  }
+
   function resetEditorState(message) {
     stopPlayback();
     state.steps = [];
@@ -52,9 +84,15 @@
     codePanel.syncMode(dom, false);
     configureControls();
     updateHeader(null);
-    visualPanel.renderIdle(dom, message);
+    syncIdlePanels();
+    visualPanel.renderIdle(dom);
     flowSidebar.renderIdle(dom, message);
-    codePanel.renderIdleOutput(dom, state.runResult.stdout, state.runResult.error);
+    codePanel.renderIdleOutput(
+      dom,
+      state.runResult.stdout,
+      state.runResult.error,
+      state.runResult.displayError ?? state.runResult.error,
+    );
     explanationPanel.render(dom, state, null, "summary");
   }
 
@@ -63,8 +101,10 @@
     syncDraft();
 
     if (!state.code.trim()) {
-      state.runResult = stateApi.createRunResult(state.stdin);
-      state.runResult.error = "시각화할 파이썬 코드를 입력하세요.";
+      setClientRunError(
+        "시각화할 파이썬 코드를 입력하세요.",
+        "실행할 Python 코드를 먼저 입력해 주세요. 코드 입력창에 한 줄 이상 작성한 뒤 다시 실행해 보세요.",
+      );
       resetEditorState(state.runResult.error);
       return;
     }
@@ -83,9 +123,11 @@
       state.stdin = payload.stdin || state.stdin;
       state.steps = payload.steps || [];
       state.currentIndex = 0;
+      const rawError = payload.error || null;
       state.runResult = {
         ok: Boolean(payload.ok),
-        error: payload.error || null,
+        error: rawError,
+        displayError: payload.display_error ?? payload.displayError ?? rawError,
         stdout: payload.stdout || "",
         stdin: payload.stdin || state.stdin,
         analysis: payload.analysis || stateApi.createAnalysis(),
@@ -93,17 +135,24 @@
       dom.codeInput.value = state.code;
       dom.stdinInput.value = state.stdin;
 
-      if (state.steps.length) {
+      if (state.runResult.ok && state.steps.length) {
         renderTraceState();
       } else {
         resetEditorState(payload.error || "실행 기록을 만들지 못했습니다.");
       }
     } catch (error) {
       window.clearTimeout(timeoutId);
-      state.runResult = stateApi.createRunResult(state.stdin);
-      state.runResult.error = error.name === "AbortError"
-        ? "서버 응답이 지연되고 있습니다. 개발 서버가 실행 중인지 확인하세요."
-        : "서버에 연결하지 못했습니다. `python3 app.py`로 서버가 실행 중인지 확인하세요.";
+      if (error.name === "AbortError") {
+        setClientRunError(
+          "서버 응답이 지연되고 있습니다. 개발 서버가 실행 중인지 확인하세요.",
+          "실행 요청이 제한 시간 안에 끝나지 않았습니다. 무한 루프이거나 서버가 바쁜 상태일 수 있으니 잠시 후 다시 시도해 주세요.",
+        );
+      } else {
+        setClientRunError(
+          "서버에 연결하지 못했습니다. `python3 app.py`로 서버가 실행 중인지 확인하세요.",
+          "개발 서버에 연결하지 못했습니다. `python3 app.py`로 서버를 실행한 뒤 다시 시도해 주세요.",
+        );
+      }
       resetEditorState(state.runResult.error);
     } finally {
       dom.runButton.disabled = false;
@@ -114,6 +163,7 @@
   function renderTraceState() {
     codePanel.syncMode(dom, true);
     configureControls();
+    syncTracePanels();
 
     const step = getCurrentStep();
     const previousStep = getPreviousStep();
@@ -126,6 +176,7 @@
       dom,
       step ? step.stdout || "" : state.runResult.stdout,
       state.runResult.error,
+      state.runResult.displayError ?? state.runResult.error,
     );
     explanationPanel.render(dom, state, step, state.primaryView);
   }
@@ -139,11 +190,7 @@
     dom.stepCounter.textContent = stepText;
     dom.functionPill.textContent = activeFrame ? activeFrame.name : "module";
     dom.linePill.textContent = step && step.line ? String(step.line) : "-";
-    dom.eventLabel.textContent = step
-      ? utils.formatEvent(step.event)
-      : state.runResult.error
-        ? "error"
-        : "idle";
+    dom.eventLabel.textContent = step ? utils.formatEvent(step.event) : "idle";
   }
 
   function configureControls() {

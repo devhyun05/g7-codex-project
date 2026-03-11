@@ -6,6 +6,10 @@
       structures: [],
       intent_map: {},
       summary: "",
+      intents: {
+        sorting: false,
+        sorting_order: "unknown",
+      },
     };
   }
 
@@ -13,6 +17,7 @@
     return {
       ok: true,
       error: null,
+      displayError: null,
       stdout: "",
       stdin,
       analysis: createAnalysis(),

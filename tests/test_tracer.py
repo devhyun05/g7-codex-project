@@ -241,8 +241,8 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(returned_nodes)
         self.assertTrue(any("n" in node.get("locals", {}) for node in returned_nodes))
 
-    def test_detects_sorting_intent_and_order(self):
-        merge_sort_result = self.tracer.trace(
+    def test_marks_sorting_intent_and_collects_call_tree(self):
+        result = self.tracer.trace(
             "\n".join(
                 [
                     "def merge_sort(arr):",
@@ -269,7 +269,40 @@ class ExecutionTracerTest(unittest.TestCase):
                 ]
             )
         )
-        desc_result = self.tracer.trace(
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertTrue(
+            any(
+                step.get("call_tree") and step["call_tree"].get("children")
+                for step in result["steps"]
+            )
+        )
+
+    def test_detects_sorting_intent_from_compare_swap_pattern(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def reorder(values):",
+                    "    n = len(values)",
+                    "    for i in range(n):",
+                    "        for j in range(0, n - i - 1):",
+                    "            if values[j] > values[j + 1]:",
+                    "                values[j], values[j + 1] = values[j + 1], values[j]",
+                    "    return values",
+                    "",
+                    "data = [9, 1, 4, 2]",
+                    "print(reorder(data))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertEqual(result["analysis"]["intents"]["sorting_order"], "asc")
+
+    def test_detects_descending_sort_order_from_compare_swap_pattern(self):
+        result = self.tracer.trace(
             "\n".join(
                 [
                     "def reorder_desc(values):",
@@ -286,9 +319,33 @@ class ExecutionTracerTest(unittest.TestCase):
             )
         )
 
-        self.assertTrue(merge_sort_result["analysis"]["intents"]["sorting"])
-        self.assertTrue(desc_result["analysis"]["intents"]["sorting"])
-        self.assertEqual(desc_result["analysis"]["intents"]["sorting_order"], "desc")
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertEqual(result["analysis"]["intents"]["sorting_order"], "desc")
+
+    def test_detects_insertion_pattern_without_sort_name(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def reorder(values):",
+                    "    for i in range(1, len(values)):",
+                    "        key = values[i]",
+                    "        j = i - 1",
+                    "        while j >= 0 and values[j] > key:",
+                    "            values[j + 1] = values[j]",
+                    "            j -= 1",
+                    "        values[j + 1] = key",
+                    "    return values",
+                    "",
+                    "data = [9, 3, 7, 1]",
+                    "print(reorder(data))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertEqual(result["analysis"]["intents"]["sorting_order"], "asc")
 
     def test_explains_condition_with_runtime_values(self):
         result = self.tracer.trace(
