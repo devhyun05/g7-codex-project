@@ -195,6 +195,21 @@
   fill: var(--ink);
 }
 
+.tree-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.tree-node rect {
+  transition: stroke 0.18s ease, filter 0.18s ease;
+}
+
+.tree-node:hover rect,
+.tree-node:focus-visible rect {
+  stroke: var(--accent);
+  filter: drop-shadow(0 8px 14px rgba(184, 84, 80, 0.14));
+}
+
 .structure-board {
   padding: 8px;
   border-radius: 16px;

@@ -102,6 +102,7 @@
         : "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree);
+      attachCallTreeInteractions(dom);
       return view;
     }
 
@@ -961,7 +962,14 @@
           ${layout.nodes
             .map(
               (node) => `
-                <g class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}" transform="translate(${node.x - 70}, ${node.y - 24})">
+                <g
+                  class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}"
+                  data-node-id="${utils.escapeHtml(node.id || "")}"
+                  tabindex="0"
+                  role="button"
+                  aria-label="${utils.escapeHtml(`${node.label || "frame"} frame card로 이동`)}"
+                  transform="translate(${node.x - 70}, ${node.y - 24})"
+                >
                   <rect rx="14" ry="14" width="140" height="48"></rect>
                   <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
                   <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
@@ -1029,6 +1037,38 @@
       width: Math.max(420, 240 + tracker.maxDepth * xGap),
       height: Math.max(300, tracker.nextY),
     };
+  }
+
+  function attachCallTreeInteractions(dom) {
+    const svg = dom.primaryStage.querySelector(".tree-svg");
+    if (!svg) {
+      return;
+    }
+
+    const focusFrameCard = (nodeId) => {
+      const flowSidebar = window.Visualizer
+        && window.Visualizer.renderers
+        ? window.Visualizer.renderers.flowSidebar
+        : null;
+      if (!nodeId || !flowSidebar || typeof flowSidebar.focusFrame !== "function") {
+        return;
+      }
+      flowSidebar.focusFrame(dom, nodeId);
+    };
+
+    svg.querySelectorAll(".tree-node[data-node-id]").forEach((node) => {
+      node.addEventListener("click", () => {
+        focusFrameCard(node.dataset.nodeId);
+      });
+
+      node.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        focusFrameCard(node.dataset.nodeId);
+      });
+    });
   }
 
   window.Visualizer.renderers.visualPanel = {
