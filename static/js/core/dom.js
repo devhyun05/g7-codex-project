@@ -15,7 +15,9 @@
       linePill: document.getElementById("line-pill"),
       editCodeButton: document.getElementById("edit-code-button"),
       editorWrap: document.getElementById("editor-wrap"),
+      traceWorkspace: document.getElementById("trace-workspace"),
       codeViewer: document.getElementById("code-viewer"),
+      flowSidebar: document.getElementById("flow-sidebar"),
       outputView: document.getElementById("output-view"),
       outputStatus: document.getElementById("output-status"),
       stageTitle: document.getElementById("stage-title"),
@@ -24,6 +26,8 @@
       eventLabel: document.getElementById("event-label"),
       primaryViewLabel: document.getElementById("primary-view-label"),
       explanationView: document.getElementById("explanation-view"),
+      workspaceGrid: document.querySelector(".workspace-grid"),
+      workspaceSplitter: document.getElementById("workspace-splitter"),
     };
   }
 

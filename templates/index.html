@@ -14,6 +14,14 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/styles.css', v='20260311-4') }}"
     />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/flow-sidebar.css', v='20260311-5') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/splitter.css', v='20260311-6') }}"
+    />
   </head>
   <body>
     <div class="page-shell">
@@ -33,7 +41,7 @@
       </header>
 
       <main class="workspace-grid">
-        <section class="column-grid">
+        <section id="workspace-left" class="column-grid">
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
@@ -95,8 +103,13 @@
               </div>
             </div>
 
-            <div id="code-viewer" class="code-viewer empty-state hidden">
-              실행 기록이 생성되면 코드 흐름이 여기에 표시됩니다.
+            <div id="trace-workspace" class="trace-workspace hidden">
+              <div id="code-viewer" class="code-viewer empty-state">
+                실행 기록이 생성되면 코드 흐름이 여기에 표시됩니다.
+              </div>
+              <aside id="flow-sidebar" class="flow-sidebar empty-state">
+                실행 기록이 생성되면 프레임 흐름이 여기에 표시됩니다.
+              </aside>
             </div>
           </section>
 
@@ -114,7 +127,16 @@
           </section>
         </section>
 
-        <section class="column-grid">
+        <div
+          id="workspace-splitter"
+          class="workspace-splitter"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="패널 크기 조절"
+          tabindex="0"
+        ></div>
+
+        <section id="workspace-right" class="column-grid">
           <section class="panel panel-main">
             <div class="panel-head">
               <div>
@@ -155,7 +177,9 @@
     <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-4') }}"></script>
     <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-4') }}"></script>
     <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-4') }}"></script>
-    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/flow_sidebar.js', v='20260311-5') }}"></script>
+    <script src="{{ url_for('static', filename='js/layout/splitter.js', v='20260311-6') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-5') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js', v='20260311-4') }}"></script>
   </body>
 </html>
