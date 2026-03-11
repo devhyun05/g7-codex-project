@@ -30,7 +30,7 @@ class TraceLimitExceeded(RuntimeError):
 
 @dataclass
 class TraceConfig:
-    step_limit: int = 350
+    step_limit: int = 999
     time_limit_seconds: float = 3.0
 
 
