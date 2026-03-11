@@ -176,40 +176,22 @@
   }
 
   function extractLinkedListState(step, state) {
-    const current = step && step.structure && step.structure.kind === "linked-list"
-      ? step.structure
-      : null;
-
-    if (current && isConnectedLinkedList(current)) {
-      return current;
+    if (step && isConnectedLinkedList(step.structure)) {
+      return step.structure;
     }
-
-    const previousConnected = findNearbyLinkedListState(state, true);
-    if (previousConnected) {
-      return previousConnected;
-    }
-
-    if (current) {
-      return current;
-    }
-
-    return findNearbyLinkedListState(state, false);
+    return findNearbyLinkedListState(state);
   }
 
-  function findNearbyLinkedListState(state, connectedOnly) {
+  function findNearbyLinkedListState(state) {
     if (!state || !Array.isArray(state.steps) || !state.steps.length) {
       return null;
     }
 
     for (let index = state.currentIndex - 1; index >= 0; index -= 1) {
       const previous = state.steps[index];
-      if (!previous || !previous.structure || previous.structure.kind !== "linked-list") {
-        continue;
+      if (previous && isConnectedLinkedList(previous.structure)) {
+        return previous.structure;
       }
-      if (connectedOnly && !isConnectedLinkedList(previous.structure)) {
-        continue;
-      }
-      return previous.structure;
     }
     return null;
   }
