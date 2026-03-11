@@ -401,10 +401,7 @@
     if (pass === null) {
       return null;
     }
-    const capped = Math.max(0, Math.min(length, pass));
-    if (capped === 0) {
-      return [];
-    }
+    const capped = Math.max(0, Math.min(length, pass + 1));
     if (sortingOrder === "asc") {
       return makeRange(length - capped, length - 1);
     }
