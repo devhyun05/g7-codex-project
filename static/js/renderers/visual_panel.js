@@ -15,8 +15,17 @@
   }
 
   function render(dom, state, step, activeFrame) {
-    const view = detectPrimaryView(step, state);
+    const sortingState = extractSortingState(step, state);
+    const view = detectPrimaryView(step, state, sortingState);
     dom.primaryViewLabel.textContent = utils.formatViewLabel(view);
+
+    if (view === "sorting") {
+      dom.stageTitle.textContent = "정렬 시각화";
+      dom.stageCaption.textContent = "정렬 대상 배열의 값 변화를 막대 그래프로 보여줍니다.";
+      dom.primaryStage.className = "visual-stage";
+      dom.primaryStage.innerHTML = buildSortingMarkup(sortingState);
+      return view;
+    }
 
     if (view === "graph") {
       dom.stageTitle.textContent = "그래프 흐름";
@@ -76,7 +85,11 @@
     return view;
   }
 
-  function detectPrimaryView(step, state) {
+  function detectPrimaryView(step, state, sortingState) {
+    if (shouldPreferSortingBars(step, state, sortingState)) {
+      return "sorting";
+    }
+
     if (shouldPreferSortingCallTree(step, state)) {
       return "call-tree";
     }
@@ -120,6 +133,169 @@
       ? state.runResult.analysis.intents
       : null;
     return Boolean(intents && intents.sorting);
+  }
+
+  function shouldPreferSortingBars(step, state, sortingState) {
+    if (!sortingState) {
+      return false;
+    }
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    return Boolean(intents && intents.sorting);
+  }
+
+  function extractSortingState(step, state) {
+    if (!step) {
+      return null;
+    }
+
+    const topFrame = step.stack && step.stack.length
+      ? step.stack[step.stack.length - 1]
+      : null;
+    const localCandidate = topFrame ? findNumericListCandidate(topFrame.locals, "locals") : null;
+    const globalCandidate = findNumericListCandidate(step.globals, "globals");
+    const candidate = pickBetterCandidate(localCandidate, globalCandidate);
+    if (!candidate) {
+      return null;
+    }
+
+    const prevStep = state && Array.isArray(state.steps) && state.currentIndex > 0
+      ? state.steps[state.currentIndex - 1]
+      : null;
+    const prevValues = prevStep
+      ? findCandidateValues(prevStep, candidate.scope, candidate.name)
+      : null;
+
+    return {
+      ...candidate,
+      changedIndices: detectChangedIndices(prevValues, candidate.values),
+    };
+  }
+
+  function pickBetterCandidate(left, right) {
+    if (!left) {
+      return right;
+    }
+    if (!right) {
+      return left;
+    }
+    if (right.values.length > left.values.length) {
+      return right;
+    }
+    return left;
+  }
+
+  function findCandidateValues(step, scope, name) {
+    if (!step) {
+      return null;
+    }
+    let source = null;
+    if (scope === "locals") {
+      const topFrame = step.stack && step.stack.length
+        ? step.stack[step.stack.length - 1]
+        : null;
+      source = topFrame ? topFrame.locals : null;
+    } else {
+      source = step.globals;
+    }
+    if (!source || !source[name]) {
+      return null;
+    }
+    const parsed = parseNumericList(name, source[name], scope);
+    return parsed ? parsed.values : null;
+  }
+
+  function findNumericListCandidate(namespace, scope) {
+    if (!namespace) {
+      return null;
+    }
+
+    let best = null;
+    Object.entries(namespace).forEach(([name, value]) => {
+      const parsed = parseNumericList(name, value, scope);
+      if (!parsed) {
+        return;
+      }
+      if (!best || parsed.values.length > best.values.length) {
+        best = parsed;
+      }
+    });
+    return best;
+  }
+
+  function parseNumericList(name, value, scope) {
+    if (!value || value.type !== "list" || !Array.isArray(value.items) || value.items.length < 2) {
+      return null;
+    }
+
+    const values = [];
+    for (const item of value.items) {
+      if (!item || typeof item.value !== "number" || Number.isNaN(item.value)) {
+        return null;
+      }
+      values.push(item.value);
+    }
+
+    return {
+      name,
+      scope,
+      values,
+      min: Math.min(...values),
+      max: Math.max(...values),
+    };
+  }
+
+  function detectChangedIndices(previous, current) {
+    if (!Array.isArray(previous) || previous.length !== current.length) {
+      return [];
+    }
+    const changed = [];
+    for (let index = 0; index < current.length; index += 1) {
+      if (previous[index] !== current[index]) {
+        changed.push(index);
+      }
+    }
+    return changed;
+  }
+
+  function buildSortingMarkup(sortingState) {
+    if (!sortingState) {
+      return `
+        <div class="stage-scroll">
+          <div class="structure-board">정렬 대상 숫자 배열을 찾지 못했습니다.</div>
+        </div>
+      `;
+    }
+
+    const range = sortingState.max - sortingState.min || 1;
+    return `
+      <div class="stage-scroll">
+        <div class="visual-caption">
+          <span><span class="legend-dot current"></span>이번 step에서 값이 바뀐 위치</span>
+          <span>대상: ${utils.escapeHtml(sortingState.scope)}.${utils.escapeHtml(sortingState.name)}</span>
+        </div>
+        <div class="sorting-board">
+          <div class="sorting-bars">
+            ${sortingState.values
+              .map((value, index) => {
+                const normalized = ((value - sortingState.min) / range) * 100;
+                const height = Math.max(12, normalized);
+                const changed = sortingState.changedIndices.includes(index) ? "changed" : "";
+                return `
+                  <div class="sorting-bar-wrap">
+                    <div class="sorting-bar ${changed}" style="height: ${height}%;">
+                      <span class="sorting-value">${utils.escapeHtml(String(value))}</span>
+                    </div>
+                    <span class="sorting-index">${index}</span>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function buildSummaryMarkup(step, activeFrame, state) {
