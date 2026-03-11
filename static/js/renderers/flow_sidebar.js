@@ -468,13 +468,14 @@
 
     window.requestAnimationFrame(() => {
       target.scrollIntoView({
-        block: "nearest",
+        block,
         inline: "nearest",
       });
     });
   }
 
   window.Visualizer.renderers.flowSidebar = {
+    focusFrame,
     render,
     renderIdle,
   };

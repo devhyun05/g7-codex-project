@@ -53,6 +53,7 @@ class ExecutionTracerTest(unittest.TestCase):
         walk(last_tree)
         self.assertTrue(any(label.startswith("dfs(") for label in labels))
         self.assertIsNotNone(result["steps"][-1]["graph"])
+        self.assertFalse(result["analysis"]["intents"]["sorting"])
 
     def test_blocks_disallowed_imports(self):
         result = self.tracer.trace("import os\n")
