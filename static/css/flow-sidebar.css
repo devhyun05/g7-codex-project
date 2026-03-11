@@ -104,6 +104,10 @@
   align-content: start;
 }
 
+.flow-column {
+  position: relative;
+}
+
 .objects-column {
   margin-top: 4px;
 }
@@ -124,8 +128,8 @@
 .flow-row {
   position: relative;
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   padding: 6px 8px;
   border-radius: 10px;
   border: 1px solid var(--stroke);
@@ -142,25 +146,18 @@
 }
 
 .flow-row-rail {
-  position: relative;
-  margin-left: calc(var(--depth, 0) * 7px);
+  display: none;
 }
 
 .flow-row-rail::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 0;
-  width: 1px;
-  background: rgba(42, 33, 29, 0.14);
+  content: none;
 }
 
 .flow-row-rail::after {
   content: "";
   position: absolute;
-  top: 10px;
-  left: -2px;
+  top: 11px;
+  left: 3px;
   width: 5px;
   height: 5px;
   border-radius: 999px;
