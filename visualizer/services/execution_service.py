@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .runtime_locator import find_node_runtime
+
 
 class CodeExecutionService:
     def __init__(self, timeout_seconds: float = 5.0):
@@ -127,7 +129,7 @@ class CodeExecutionService:
             )
 
     def _run_javascript(self, code: str, stdin: str) -> dict[str, Any]:
-        node = shutil.which("node")
+        node = find_node_runtime()
         if node is None:
             return self._missing_runtime_result(code, stdin, "javascript", ["node"])
 
@@ -146,7 +148,7 @@ class CodeExecutionService:
             )
 
     def _run_typescript(self, code: str, stdin: str) -> dict[str, Any]:
-        node = shutil.which("node")
+        node = find_node_runtime()
         npx = shutil.which("npx")
         if node is None or npx is None:
             return self._missing_runtime_result(code, stdin, "typescript", ["node", "npx", "tsc"])

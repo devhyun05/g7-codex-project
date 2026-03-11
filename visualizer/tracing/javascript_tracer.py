@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
+
+from visualizer.services.runtime_locator import find_node_runtime
 
 
 TRACE_PREFIX = "__TRACE__|"
@@ -16,7 +17,7 @@ class JavaScriptLineTracer:
         self.timeout_seconds = timeout_seconds
 
     def trace(self, code: str, stdin: str = "") -> dict[str, Any]:
-        node = shutil.which("node")
+        node = find_node_runtime()
         if node is None:
             return self._result(
                 code=code,
