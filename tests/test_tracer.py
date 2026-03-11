@@ -202,6 +202,27 @@ class ExecutionTracerTest(unittest.TestCase):
             )
         )
 
+    def test_detects_sorting_intent_from_compare_swap_pattern(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def reorder(values):",
+                    "    n = len(values)",
+                    "    for i in range(n):",
+                    "        for j in range(0, n - i - 1):",
+                    "            if values[j] > values[j + 1]:",
+                    "                values[j], values[j + 1] = values[j + 1], values[j]",
+                    "    return values",
+                    "",
+                    "data = [9, 1, 4, 2]",
+                    "print(reorder(data))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+
 
 if __name__ == "__main__":
     unittest.main()

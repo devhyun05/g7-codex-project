@@ -104,6 +104,8 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
     def visit_Assign(self, node: ast.Assign) -> None:
         for name in self._target_names(node.targets):
             self._inspect_assignment(name, node.value)
+        if self._is_in_place_swap_assignment(node):
+            self.sorting_detected = True
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
@@ -127,6 +129,13 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         elif isinstance(node.func, ast.Name):
             call_name = node.func.id.lower()
             if call_name == "sorted" or self._looks_like_sort_name(call_name):
+                self.sorting_detected = True
+        self.generic_visit(node)
+
+    def visit_If(self, node: ast.If) -> None:
+        compared_name = self._compared_subscript_name(node.test)
+        if compared_name:
+            if any(self._is_in_place_swap_assignment(stmt, compared_name) for stmt in node.body):
                 self.sorting_detected = True
         self.generic_visit(node)
 
@@ -286,3 +295,75 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             "shellsort",
             "shell_sort",
         }
+
+    def _compared_subscript_name(self, node: ast.AST) -> str | None:
+        if not isinstance(node, ast.Compare):
+            return None
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            return None
+        if not isinstance(
+            node.ops[0],
+            (ast.Gt, ast.Lt, ast.GtE, ast.LtE, ast.Eq, ast.NotEq),
+        ):
+            return None
+
+        left = self._subscript_key(node.left)
+        right = self._subscript_key(node.comparators[0])
+        if not left or not right:
+            return None
+        if left[0] != right[0]:
+            return None
+        if left[1] == right[1]:
+            return None
+        return left[0]
+
+    def _is_in_place_swap_assignment(
+        self,
+        node: ast.AST,
+        constrained_name: str | None = None,
+    ) -> bool:
+        if not isinstance(node, ast.Assign):
+            return False
+        if len(node.targets) != 1:
+            return False
+        left_elements = self._tuple_elements(node.targets[0])
+        right_elements = self._tuple_elements(node.value)
+        if len(left_elements) != 2 or len(right_elements) != 2:
+            return False
+
+        left0 = self._subscript_key(left_elements[0])
+        left1 = self._subscript_key(left_elements[1])
+        right0 = self._subscript_key(right_elements[0])
+        right1 = self._subscript_key(right_elements[1])
+        if not all([left0, left1, right0, right1]):
+            return False
+
+        if constrained_name and (
+            left0[0] != constrained_name or left1[0] != constrained_name
+        ):
+            return False
+
+        if left0[0] != left1[0]:
+            return False
+
+        return (
+            left0[1] == right1[1]
+            and left1[1] == right0[1]
+            and right0[0] == left0[0]
+            and right1[0] == left0[0]
+        )
+
+    def _tuple_elements(self, node: ast.AST) -> list[ast.AST]:
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return list(node.elts)
+        return []
+
+    def _subscript_key(self, node: ast.AST) -> tuple[str, str] | None:
+        if not isinstance(node, ast.Subscript):
+            return None
+        if not isinstance(node.value, ast.Name):
+            return None
+        return (
+            node.value.id,
+            ast.dump(node.slice, annotate_fields=True, include_attributes=False),
+        )
