@@ -50,6 +50,26 @@
     syncFocusIntoView(dom.flowSidebar, focusNodeId);
   }
 
+  function focusFrame(dom, nodeId) {
+    if (!dom || !dom.flowSidebar || !nodeId) {
+      return;
+    }
+
+    const target = dom.flowSidebar.querySelector(`[data-node-id="${nodeId}"]`);
+    if (!target) {
+      return;
+    }
+
+    syncFocusIntoView(dom.flowSidebar, nodeId, "center");
+    target.classList.remove("manual-focus");
+    void target.offsetWidth;
+    target.classList.add("manual-focus");
+
+    window.setTimeout(() => {
+      target.classList.remove("manual-focus");
+    }, 1800);
+  }
+
   function buildGlobalFrame(globals) {
     const entries = Object.entries(globals)
       .filter(([name]) => name !== "__builtins__")
@@ -300,7 +320,7 @@
     return String(value);
   }
 
-  function syncFocusIntoView(container, focusNodeId) {
+  function syncFocusIntoView(container, focusNodeId, block = "nearest") {
     if (!focusNodeId) {
       return;
     }
@@ -312,13 +332,14 @@
 
     window.requestAnimationFrame(() => {
       target.scrollIntoView({
-        block: "nearest",
+        block,
         inline: "nearest",
       });
     });
   }
 
   window.Visualizer.renderers.flowSidebar = {
+    focusFrame,
     render,
     renderIdle,
   };

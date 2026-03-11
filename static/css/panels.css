@@ -377,6 +377,12 @@
   word-break: break-word;
 }
 
+.flow-row.frame-row.manual-focus {
+  border-color: rgba(184, 84, 80, 0.56);
+  background: rgba(184, 84, 80, 0.12);
+  box-shadow: 0 0 0 4px rgba(184, 84, 80, 0.14);
+}
+
 @media (max-width: 1180px) {
   .slider-controls {
     width: 100%;
