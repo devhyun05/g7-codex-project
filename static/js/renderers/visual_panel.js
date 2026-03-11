@@ -194,6 +194,7 @@
       sortedIndices: detectSortedIndices(
         candidate.compareValues,
         getSortingOrder(state),
+        topFrame ? topFrame.locals : null,
       ),
     };
   }
@@ -373,9 +374,14 @@
     return intents.sorting_order;
   }
 
-  function detectSortedIndices(values, sortingOrder) {
+  function detectSortedIndices(values, sortingOrder, frameLocals) {
     if (!Array.isArray(values) || values.length < 2) {
       return [];
+    }
+
+    const byPass = detectBubblePassSortedIndices(values.length, sortingOrder, frameLocals);
+    if (byPass) {
+      return byPass;
     }
 
     if (sortingOrder === "asc") {
@@ -385,6 +391,38 @@
       return detectDescBubbleFixedPrefix(values);
     }
     return detectDefaultSortedIndices(values);
+  }
+
+  function detectBubblePassSortedIndices(length, sortingOrder, frameLocals) {
+    if (!frameLocals || typeof frameLocals !== "object") {
+      return null;
+    }
+    const pass = readNonNegativeInt(frameLocals.i);
+    if (pass === null) {
+      return null;
+    }
+    const capped = Math.max(0, Math.min(length, pass));
+    if (capped === 0) {
+      return [];
+    }
+    if (sortingOrder === "asc") {
+      return makeRange(length - capped, length - 1);
+    }
+    if (sortingOrder === "desc") {
+      return makeRange(0, capped - 1);
+    }
+    return null;
+  }
+
+  function readNonNegativeInt(serializedValue) {
+    if (!serializedValue || typeof serializedValue !== "object") {
+      return null;
+    }
+    const raw = serializedValue.value;
+    if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0) {
+      return null;
+    }
+    return raw;
   }
 
   function detectAscBubbleFixedSuffix(values) {
