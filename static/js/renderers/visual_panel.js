@@ -60,11 +60,12 @@
           ? "doubly linked list로 감지되어 next/prev 포인터 연결을 함께 표시합니다."
           : "singly linked list로 감지되어 next 포인터 연결을 표시합니다.";
       dom.primaryStage.className = "visual-stage";
+      const focus = linkedListState ? resolveLinkedListFocus(linkedListState) : null;
       dom.primaryStage.innerHTML = linkedListState
-        ? buildLinkedListMarkup(linkedListState)
+        ? buildLinkedListMarkup(linkedListState, focus ? focus.id : null)
         : buildLinkedListWaitingMarkup();
       if (linkedListState) {
-        scrollLinkedListLane(dom, linkedListState);
+        scrollLinkedListLane(dom, linkedListState, focus);
       } else {
         resetLinkedListViewportState();
       }
@@ -881,9 +882,9 @@
     `;
   }
 
-  function buildLinkedListMarkup(structure) {
+  function buildLinkedListMarkup(structure, focusNodeId) {
     const nodes = structure.nodes || [];
-    const effectiveCurrentId = structure.current_id || (nodes.length ? nodes[nodes.length - 1].id : null);
+    const effectiveCurrentId = focusNodeId || (nodes.length ? nodes[nodes.length - 1].id : null);
     const listType = structure.list_type === "doubly" ? "doubly" : "singly";
     const nodeNameMap = new Map(
       nodes.map((node, index) => [node.id, `N${index + 1}`]),
@@ -969,7 +970,21 @@
     linkedListViewportState.nodeIds = [];
   }
 
-  function scrollLinkedListLane(dom, structure) {
+  function resolveLinkedListFocus(structure) {
+    const nodeIds = Array.isArray(structure.nodes) ? structure.nodes.map((node) => node.id) : [];
+    if (!nodeIds.length) {
+      return { id: null, isNewNode: false };
+    }
+    const previousIds = linkedListViewportState.nodeIds || [];
+    const previousSet = new Set(previousIds);
+    const addedIds = nodeIds.filter((id) => !previousSet.has(id));
+    if (addedIds.length) {
+      return { id: addedIds[addedIds.length - 1], isNewNode: true };
+    }
+    return { id: nodeIds[nodeIds.length - 1], isNewNode: false };
+  }
+
+  function scrollLinkedListLane(dom, structure, focus) {
     const lane = dom.primaryStage.querySelector(".linked-list-lane");
     if (!lane) {
       return;
@@ -979,13 +994,9 @@
       return;
     }
 
-    const previous = linkedListViewportState.nodeIds;
-    const appended = nodeIds.length > previous.length && previous.every((id, index) => nodeIds[index] === id);
+    const targetId = focus && focus.id ? focus.id : nodeIds[nodeIds.length - 1];
+    const isNewNode = Boolean(focus && focus.isNewNode);
     linkedListViewportState.nodeIds = [...nodeIds];
-
-    const targetId = appended
-      ? nodeIds[nodeIds.length - 1]
-      : structure.current_id || nodeIds[nodeIds.length - 1];
     if (!targetId) {
       return;
     }
@@ -999,7 +1010,7 @@
       const laneRect = lane.getBoundingClientRect();
       const targetRect = targetNode.getBoundingClientRect();
       const isOutOfView = targetRect.right > laneRect.right - 12 || targetRect.left < laneRect.left + 12;
-      if (!isOutOfView && !appended) {
+      if (!isOutOfView && !isNewNode) {
         return;
       }
       const destination = Math.max(0, targetNode.offsetLeft - Math.max(16, (lane.clientWidth - targetNode.clientWidth) / 2));
