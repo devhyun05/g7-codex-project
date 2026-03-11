@@ -9,7 +9,12 @@ def analyze_code_structures(code: str) -> dict[str, Any]:
     try:
         tree = ast.parse(code)
     except SyntaxError:
-        return {"structures": [], "intent_map": {}, "summary": ""}
+        return {
+            "structures": [],
+            "intent_map": {},
+            "summary": "",
+            "intents": {"sorting": False},
+        }
 
     analyzer = CodeStructureAnalyzer()
     analyzer.visit(tree)
@@ -23,6 +28,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         self.node_like_classes: set[str] = set()
         self.method_ops: dict[str, set[str]] = defaultdict(set)
         self.hints: dict[str, dict[str, Any]] = {}
+        self.sorting_detected = False
 
     def build_result(self) -> dict[str, Any]:
         for name, ops in self.method_ops.items():
@@ -56,7 +62,13 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             "structures": structures,
             "intent_map": {name: hint["kind"] for name, hint in self.hints.items()},
             "summary": summary,
+            "intents": {"sorting": self.sorting_detected},
         }
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if self._looks_like_sort_name(node.name):
+            self.sorting_detected = True
+        self.generic_visit(node)
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -110,6 +122,12 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
                     self.method_ops[name].add("pop-left")
                 else:
                     self.method_ops[name].add("pop")
+            elif attr == "sort":
+                self.sorting_detected = True
+        elif isinstance(node.func, ast.Name):
+            call_name = node.func.id.lower()
+            if call_name == "sorted" or self._looks_like_sort_name(call_name):
+                self.sorting_detected = True
         self.generic_visit(node)
 
     def _inspect_assignment(self, name: str, value: ast.AST | None) -> None:
@@ -243,3 +261,28 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         ):
             return target.attr
         return None
+
+    def _looks_like_sort_name(self, name: str) -> bool:
+        lowered = name.lower()
+        if "sort" in lowered:
+            return True
+        return lowered in {
+            "quicksort",
+            "quick_sort",
+            "mergesort",
+            "merge_sort",
+            "heapsort",
+            "heap_sort",
+            "insertionsort",
+            "insertion_sort",
+            "selectionsort",
+            "selection_sort",
+            "bubblesort",
+            "bubble_sort",
+            "radixsort",
+            "radix_sort",
+            "countingsort",
+            "counting_sort",
+            "shellsort",
+            "shell_sort",
+        }

@@ -108,7 +108,12 @@ class ExecutionTracer:
         self.step_count = 0
         self.started_at = time.perf_counter()
         self.globals_env: dict[str, Any] = {}
-        self.code_analysis: dict[str, Any] = {"structures": [], "intent_map": {}, "summary": ""}
+        self.code_analysis: dict[str, Any] = {
+            "structures": [],
+            "intent_map": {},
+            "summary": "",
+            "intents": {"sorting": False},
+        }
         self.detector = StructureDetector(self._short_repr, self.code_analysis)
         self.call_root = {
             "id": "root",
@@ -506,6 +511,10 @@ class ExecutionTracer:
         return " ".join(pieces)
 
     def _describe_visual_target(self, snapshot: dict[str, Any]) -> str:
+        intents = self.code_analysis.get("intents") or {}
+        if intents.get("sorting") and snapshot.get("call_tree", {}).get("children"):
+            return "정렬 알고리즘으로 판단되어 호출 트리를 우선 표시합니다."
+
         if snapshot.get("graph"):
             graph_name = snapshot["graph"].get("name") or "graph"
             return f"`{graph_name}` 인접 구조를 그래프로 판단해 흐름을 그립니다."

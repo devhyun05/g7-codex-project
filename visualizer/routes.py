@@ -23,7 +23,12 @@ def visualize():
                     "ok": False,
                     "error": "시각화할 파이썬 코드를 입력하세요.",
                     "steps": [],
-                    "analysis": {"structures": [], "intent_map": {}, "summary": ""},
+                    "analysis": {
+                        "structures": [],
+                        "intent_map": {},
+                        "summary": "",
+                        "intents": {"sorting": False},
+                    },
                 }
             ),
             400,

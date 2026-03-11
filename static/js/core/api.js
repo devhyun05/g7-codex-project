@@ -25,6 +25,9 @@
           structures: [],
           intent_map: {},
           summary: "",
+          intents: {
+            sorting: false,
+          },
         },
       };
     }

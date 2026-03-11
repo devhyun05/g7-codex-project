@@ -15,7 +15,7 @@
   }
 
   function render(dom, state, step, activeFrame) {
-    const view = detectPrimaryView(step);
+    const view = detectPrimaryView(step, state);
     dom.primaryViewLabel.textContent = utils.formatViewLabel(view);
 
     if (view === "graph") {
@@ -51,8 +51,17 @@
     }
 
     if (view === "call-tree") {
+      const sortingIntent = Boolean(
+        state &&
+          state.runResult &&
+          state.runResult.analysis &&
+          state.runResult.analysis.intents &&
+          state.runResult.analysis.intents.sorting,
+      );
       dom.stageTitle.textContent = "호출 트리";
-      dom.stageCaption.textContent = "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
+      dom.stageCaption.textContent = sortingIntent
+        ? "정렬 알고리즘 실행으로 판단되어 Visualgo처럼 호출 트리를 우선 보여줍니다."
+        : "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree);
       return view;
@@ -67,7 +76,11 @@
     return view;
   }
 
-  function detectPrimaryView(step) {
+  function detectPrimaryView(step, state) {
+    if (shouldPreferSortingCallTree(step, state)) {
+      return "call-tree";
+    }
+
     if (step && step.graph && Array.isArray(step.graph.nodes) && step.graph.nodes.length) {
       return "graph";
     }
@@ -94,6 +107,19 @@
     }
 
     return "summary";
+  }
+
+  function shouldPreferSortingCallTree(step, state) {
+    if (!step || !step.call_tree || !Array.isArray(step.call_tree.children)) {
+      return false;
+    }
+    if (!step.call_tree.children.length) {
+      return false;
+    }
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    return Boolean(intents && intents.sorting);
   }
 
   function buildSummaryMarkup(step, activeFrame, state) {

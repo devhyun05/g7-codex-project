@@ -163,6 +163,45 @@ class ExecutionTracerTest(unittest.TestCase):
             any(item["kind"] == "tree" for item in result["analysis"]["structures"])
         )
 
+    def test_marks_sorting_intent_and_collects_call_tree(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def merge_sort(arr):",
+                    "    if len(arr) <= 1:",
+                    "        return arr",
+                    "    mid = len(arr) // 2",
+                    "    left = merge_sort(arr[:mid])",
+                    "    right = merge_sort(arr[mid:])",
+                    "    merged = []",
+                    "    i = j = 0",
+                    "    while i < len(left) and j < len(right):",
+                    "        if left[i] <= right[j]:",
+                    "            merged.append(left[i])",
+                    "            i += 1",
+                    "        else:",
+                    "            merged.append(right[j])",
+                    "            j += 1",
+                    "    merged.extend(left[i:])",
+                    "    merged.extend(right[j:])",
+                    "    return merged",
+                    "",
+                    "nums = [5, 1, 4, 2, 8]",
+                    "print(merge_sort(nums))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertTrue(
+            any(
+                step.get("call_tree")
+                and step["call_tree"].get("children")
+                for step in result["steps"]
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
