@@ -21,7 +21,6 @@
 
   function buildExplanationMarkup(explanationJson, step) {
     const currentLine = step && step.line ? step.line : null;
-    const summary = explanationJson.summary || "코드 설명을 준비 중입니다.";
     const lineExplanations = Array.isArray(explanationJson.line_explanations)
       ? explanationJson.line_explanations
       : [];
@@ -32,7 +31,6 @@
 
     return `
       <div class="info-grid explanation-json-board">
-        ${buildCard("요약", `<p>${utils.escapeHtml(summary)}</p>`)}
         ${buildCurrentLineCard(currentExplanation, currentLine)}
         ${buildImprovementCard(improvements)}
       </div>

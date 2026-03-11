@@ -347,6 +347,50 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(result["analysis"]["intents"]["sorting"])
         self.assertEqual(result["analysis"]["intents"]["sorting_order"], "asc")
 
+    def test_n_queens_is_not_misdetected_as_sorting(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def solve_n_queens(n):",
+                    "    board = [-1] * n",
+                    "    result = []",
+                    "",
+                    "    def is_safe(row, col):",
+                    "        for prev_row in range(row):",
+                    "            prev_col = board[prev_row]",
+                    "            if prev_col == col:",
+                    "                return False",
+                    "            if abs(prev_col - col) == abs(prev_row - row):",
+                    "                return False",
+                    "        return True",
+                    "",
+                    "    def backtrack(row):",
+                    "        if row == n:",
+                    "            result.append(board[:])",
+                    "            return",
+                    "        for col in range(n):",
+                    "            if is_safe(row, col):",
+                    "                board[row] = col",
+                    "                backtrack(row + 1)",
+                    "                board[row] = -1",
+                    "",
+                    "    backtrack(0)",
+                    "    return result",
+                    "",
+                    "print(len(solve_n_queens(4)))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["analysis"]["intents"]["sorting"])
+        self.assertTrue(
+            any(
+                step.get("call_tree") and step["call_tree"].get("children")
+                for step in result["steps"]
+            )
+        )
+
     def test_explains_condition_with_runtime_values(self):
         result = self.tracer.trace(
             "\n".join(

@@ -136,6 +136,28 @@
   background: rgba(255, 255, 255, 0.98);
 }
 
+.flow-row.frame-card {
+  padding: 10px;
+  border-radius: 14px;
+  border-color: var(--stroke);
+  background: #fff;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.flow-row.frame-card.init-compact {
+  background: #fff;
+}
+
+.flow-row.frame-card.traversal-compact {
+  background: #fff;
+}
+
+.flow-row.frame-card:not(.focused):not(.flash-focus) {
+  background: #fff;
+  border-color: var(--stroke);
+}
+
 .flow-row.global,
 .flow-row.object-row {
   grid-template-columns: minmax(0, 1fr);
@@ -171,6 +193,27 @@
   scroll-margin-bottom: 18px;
 }
 
+.flow-row.frame-card.focused {
+  border-color: rgba(184, 84, 80, 0.52);
+  background: rgba(184, 84, 80, 0.1);
+}
+
+.flow-row.flash-focus {
+  border-color: rgba(184, 84, 80, 0.82);
+  background: rgba(184, 84, 80, 0.22);
+  box-shadow: 0 0 0 2px rgba(184, 84, 80, 0.2);
+  animation: flowFlashPulse 1.4s ease-out;
+}
+
+@keyframes flowFlashPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(184, 84, 80, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(184, 84, 80, 0);
+  }
+}
+
 .flow-row.status-return .flow-row-rail::after {
   background: var(--rose);
 }
@@ -193,6 +236,57 @@
   line-height: 1.2;
 }
 
+.flow-row.frame-card .flow-title-block strong {
+  font-size: 1.03rem;
+  line-height: 1.25;
+}
+
+.flow-row.frame-card .flow-signature {
+  margin-top: 2px;
+  font-size: 0.84rem;
+  color: #7e5a58;
+}
+
+.flow-row.frame-card .flow-meta-block {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.flow-row.frame-card .flow-row-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(78px, max-content);
+  align-items: start;
+  gap: 6px 8px;
+}
+
+.flow-row.frame-card .flow-title-block {
+  min-width: 0;
+}
+
+.flow-row.frame-card .flow-meta-block {
+  justify-self: end;
+  min-width: fit-content;
+}
+
+.flow-row.frame-card .flow-row-main {
+  min-width: 0;
+}
+
+.flow-row.frame-card .flow-status,
+.flow-row.frame-card .flow-line {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-row.frame-card .flow-signature {
+  overflow-wrap: anywhere;
+}
+
 .flow-chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -211,11 +305,38 @@
   gap: 4px;
 }
 
+.flow-row.frame-card .mini-binding-list {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.flow-row.frame-card.init-compact .mini-binding-list {
+  margin-top: 6px;
+}
+
+.flow-row.frame-card.traversal-compact .mini-binding-list {
+  margin-top: 6px;
+}
+
+.flow-init-title {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  font-family: "Space Grotesk", sans-serif;
+}
+
 .mini-binding-row {
   padding: 4px 6px;
   border-radius: 8px;
   background: #f9fbfd;
   border: 1px solid rgba(184, 84, 80, 0.08);
+}
+
+.flow-row.frame-card .mini-binding-row {
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: #f2f4f7;
+  border: 1px solid rgba(184, 84, 80, 0.14);
 }
 
 .mini-binding-row dt,
@@ -254,5 +375,19 @@
 
   .flow-sidebar {
     max-height: 320px;
+  }
+}
+
+@media (max-width: 640px) {
+  .flow-row.frame-card .flow-row-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flow-row.frame-card .flow-meta-block {
+    justify-self: start;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
   }
 }

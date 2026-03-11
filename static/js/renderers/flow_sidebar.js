@@ -38,16 +38,21 @@
             ? frames.map((frame, index) => buildFrameRow(frame, index, focusNodeId)).join("")
             : '<article class="flow-row muted"><p>호출된 함수가 없습니다.</p></article>'}
         </section>
-        <section class="flow-column objects-column">
-          <div class="flow-column-head">
-            <span>Objects</span>
-          </div>
-          ${buildObjectSummary(globals, step.stack || [])}
-        </section>
       </div>
     `;
 
     syncFocusIntoView(dom.flowSidebar, focusNodeId);
+  }
+
+  function isTreeTraversalFrame(frame) {
+    const name = String((frame && frame.name) || "").trim().toLowerCase();
+    return [
+      "inorder",
+      "preorder",
+      "postorder",
+      "levelorder",
+      "level_order",
+    ].includes(name);
   }
 
   function buildGlobalFrame(globals) {
@@ -68,6 +73,8 @@
 
   function buildFrameRow(frame, index, focusNodeId) {
     const isFocused = frame.id === focusNodeId;
+    const isInit = isInitFrame(frame);
+    const isTraversal = isTreeTraversalFrame(frame);
     const status = frame.active ? "active" : frame.status || "running";
     const statusLabel = status === "returned"
       ? "return"
@@ -79,10 +86,51 @@
     const classes = [
       "flow-row",
       "frame-row",
+      "frame-card",
+      isInit ? "init-compact" : "",
+      isTraversal ? "traversal-compact" : "",
       isFocused ? "focused" : "",
       `status-${statusLabel}`,
     ].filter(Boolean).join(" ");
-    const localEntries = Object.entries(frame.locals || {});
+    const localEntries = Object.entries(frame.locals || {})
+      .filter(([name, value]) => !name.startsWith("__") && !isFunctionLikeValue(value))
+      .slice(0, 8);
+    const compactInitEntries = buildCompactInitEntries(localEntries);
+
+    if (isInit) {
+      return `
+        <article
+          class="${classes}"
+          data-node-id="${utils.escapeHtml(frame.id)}"
+          style="--depth:${frame.depth};"
+        >
+          <div class="flow-row-main">
+            <strong class="flow-init-title">${utils.escapeHtml(frame.name)}</strong>
+            ${compactInitEntries.length
+              ? buildMiniBindingList(compactInitEntries, formatInitValue)
+              : '<p class="flow-empty">지역 변수 없음</p>'}
+          </div>
+        </article>
+      `;
+    }
+
+    if (isTraversal) {
+      const traversalEntry = getTraversalNodeEntry(frame);
+      return `
+        <article
+          class="${classes}"
+          data-node-id="${utils.escapeHtml(frame.id)}"
+          style="--depth:${frame.depth};"
+        >
+          <div class="flow-row-main">
+            <strong class="flow-init-title">${utils.escapeHtml(frame.name)}</strong>
+            ${traversalEntry
+              ? buildMiniBindingList([traversalEntry], formatTraversalValue)
+              : '<p class="flow-empty">지역 변수 없음</p>'}
+          </div>
+        </article>
+      `;
+    }
 
     return `
       <article
@@ -90,7 +138,6 @@
         data-node-id="${utils.escapeHtml(frame.id)}"
         style="--depth:${frame.depth};"
       >
-        <div class="flow-row-rail"></div>
         <div class="flow-row-main">
           <div class="flow-row-head">
             <div class="flow-title-block">
@@ -99,7 +146,6 @@
                 <span class="flow-label subtle">depth ${frame.depth}</span>
               </div>
               <strong>${utils.escapeHtml(frame.name)}</strong>
-              <p class="flow-signature">${utils.escapeHtml(frame.label || frame.name)}</p>
             </div>
             <div class="flow-meta-block">
               <span class="flow-status ${statusLabel}">${utils.escapeHtml(statusLabel)}</span>
@@ -113,7 +159,10 @@
     `;
   }
 
-  function buildMiniBindingList(entries) {
+  function buildMiniBindingList(
+    entries,
+    valueFormatter = (_name, value) => formatValue(value),
+  ) {
     return `
       <dl class="mini-binding-list">
         ${entries
@@ -121,7 +170,7 @@
             ([name, value]) => `
               <div class="mini-binding-row">
                 <dt>${utils.escapeHtml(name)}</dt>
-                <dd>${utils.escapeHtml(formatValue(value))}</dd>
+                <dd>${utils.escapeHtml(valueFormatter(name, value))}</dd>
               </div>
             `,
           )
@@ -135,10 +184,15 @@
       return "";
     }
 
+    const rendered = String(frame.returnValue).trim();
+    if (rendered === "True" || rendered === "False") {
+      return "";
+    }
+
     return `
       <p class="flow-return">
         <span class="flow-return-label">return</span>
-        <span>${utils.escapeHtml(frame.returnValue)}</span>
+        <span>${utils.escapeHtml(rendered)}</span>
       </p>
     `;
   }
@@ -225,22 +279,21 @@
       return null;
     }
 
-    if (step.event === "return") {
-      const returned = [...frames].reverse().find((frame) => frame.status === "returned");
-      if (returned) {
-        return returned.id;
-      }
-    }
-
-    if (step.event === "exception") {
-      const failed = [...frames].reverse().find((frame) => frame.status === "exception");
-      if (failed) {
-        return failed.id;
-      }
+    const stackFrames = step && Array.isArray(step.stack) ? step.stack : [];
+    const stackTop = stackFrames.length ? stackFrames[stackFrames.length - 1] : null;
+    if (stackTop && stackTop.node_id) {
+      return stackTop.node_id;
     }
 
     const active = [...frames].reverse().find((frame) => frame.active);
-    return active ? active.id : frames[frames.length - 1].id;
+    if (active) {
+      return active.id;
+    }
+
+    const running = [...frames].reverse().find(
+      (frame) => frame.status === "active" || frame.status === "running",
+    );
+    return running ? running.id : frames[frames.length - 1].id;
   }
 
   function describeFrameEvent(step, frames) {
@@ -287,17 +340,120 @@
     }
 
     if (typeof value === "string") {
-      return value;
+      return trimText(normalizeFunctionRepr(value), 110);
     }
 
     if (typeof value === "object") {
       if (Object.prototype.hasOwnProperty.call(value, "repr")) {
-        return value.repr || "";
+        return trimText(normalizeFunctionRepr(value.repr || ""), 110);
       }
-      return JSON.stringify(value);
+      return trimText(normalizeFunctionRepr(JSON.stringify(value)), 110);
     }
 
     return String(value);
+  }
+
+  function getTraversalNodeEntry(frame) {
+    if (!frame || !frame.locals || !Object.prototype.hasOwnProperty.call(frame.locals, "node")) {
+      return null;
+    }
+    return ["node", frame.locals.node];
+  }
+
+  function formatTraversalValue(name, value) {
+    if (name !== "node") {
+      return formatValue(value);
+    }
+    const text = summarizeTreeNodePointer(value);
+    return text || "";
+  }
+
+  function summarizeTreeNodePointer(value) {
+    if (!value || typeof value !== "object") {
+      return formatValue(value);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(value, "value") && value.value == null) {
+      return "None";
+    }
+
+    const attrs = Array.isArray(value.attributes) ? value.attributes : [];
+    const dataAttr = attrs.find((item) => item && item.name === "data");
+    if (dataAttr) {
+      return formatValue(dataAttr.value);
+    }
+
+    const rendered = formatValue(value);
+    if (isObjectPointerRepr(rendered)) {
+      return "";
+    }
+    return rendered;
+  }
+
+  function formatInitValue(name, value) {
+    const rendered = formatValue(value);
+    if (name === "self" && isObjectPointerRepr(rendered)) {
+      return "";
+    }
+    return rendered;
+  }
+
+  function buildCompactInitEntries(entries) {
+    if (!entries.length) {
+      return [];
+    }
+    const ordered = [];
+    const preferred = ["self", "data"];
+    const used = new Set();
+
+    preferred.forEach((key) => {
+      const found = entries.find(([name]) => name === key);
+      if (found) {
+        ordered.push(found);
+        used.add(key);
+      }
+    });
+
+    entries.forEach((entry) => {
+      if (!used.has(entry[0])) {
+        ordered.push(entry);
+      }
+    });
+
+    return ordered.slice(0, 8);
+  }
+
+  function isObjectPointerRepr(text) {
+    return /^<[^>]+ object at 0x[0-9a-fA-F]+>$/.test(String(text || "").trim());
+  }
+
+  function isInitFrame(frame) {
+    return Boolean(frame && frame.name === "__init__");
+  }
+
+  function normalizeFunctionRepr(text) {
+    return String(text || "").replace(
+      /<function\s+([^\s>]+)(?:\s+at\s+0x[0-9a-fA-F]+)?>/g,
+      (_match, namePath) => `<function ${shortFunctionName(namePath)}>`,
+    );
+  }
+
+  function shortFunctionName(namePath) {
+    const text = String(namePath || "");
+    const chunks = text.split(".");
+    return chunks[chunks.length - 1] || text;
+  }
+
+  function trimText(text, maxLength) {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return `${text.slice(0, maxLength - 1)}…`;
+  }
+
+  function isFunctionLikeValue(value) {
+    const rendered = formatValue(value);
+    return rendered.startsWith("<function ");
   }
 
   function syncFocusIntoView(container, focusNodeId) {

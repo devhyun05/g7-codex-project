@@ -4,6 +4,13 @@
 
   const utils = window.Visualizer.utils;
   let idleSearchQuery = "";
+  const TREE_ZOOM_MIN = 0.2;
+  const TREE_ZOOM_MAX = 2.4;
+  const TREE_ZOOM_STEP = 0.2;
+  const treeZoomState = {
+    "data-tree": 1,
+    "call-tree": 1,
+  };
   const structureGuides = [
     {
       label: "STACK",
@@ -68,7 +75,8 @@
       dom.stageTitle.textContent = "트리 구조";
       dom.stageCaption.textContent = "left / right 또는 children 관계를 기반으로 트리를 구성했습니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildDataTreeMarkup(step.structure);
+      dom.primaryStage.innerHTML = buildDataTreeMarkup(step.structure, getTreeZoom("data-tree"));
+      attachTreeInteractions(dom, "data-tree");
       return view;
     }
 
@@ -101,7 +109,9 @@
         ? "정렬 알고리즘 실행으로 판단되어 Visualgo처럼 호출 트리를 우선 보여줍니다."
         : "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree);
+      dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree, getTreeZoom("call-tree"));
+      attachTreeInteractions(dom, "call-tree");
+      attachCallTreeFrameLinking(dom);
       return view;
     }
 
@@ -650,6 +660,131 @@
     lane.addEventListener("pointercancel", endDrag);
   }
 
+  function getTreeZoom(view) {
+    return treeZoomState[view] || 1;
+  }
+
+  function clampTreeZoom(value) {
+    return Math.max(TREE_ZOOM_MIN, Math.min(TREE_ZOOM_MAX, value));
+  }
+
+  function formatTreeZoom(value) {
+    return `${Math.round(value * 100)}%`;
+  }
+
+  function applyTreeZoom(svg, zoomLabel, zoom) {
+    const baseWidth = Number(svg.dataset.baseWidth || 0);
+    const baseHeight = Number(svg.dataset.baseHeight || 0);
+    if (!baseWidth || !baseHeight) {
+      return;
+    }
+    svg.style.width = `${Math.round(baseWidth * zoom)}px`;
+    svg.style.height = `${Math.round(baseHeight * zoom)}px`;
+    if (zoomLabel) {
+      zoomLabel.textContent = formatTreeZoom(zoom);
+    }
+  }
+
+  function attachTreeInteractions(dom, view) {
+    const viewport = dom.primaryStage.querySelector("[data-tree-viewport]");
+    const svg = dom.primaryStage.querySelector("[data-tree-svg]");
+    if (!viewport || !svg) {
+      return;
+    }
+
+    const zoomInButton = dom.primaryStage.querySelector("[data-tree-zoom='in']");
+    const zoomOutButton = dom.primaryStage.querySelector("[data-tree-zoom='out']");
+    const zoomResetButton = dom.primaryStage.querySelector("[data-tree-zoom='reset']");
+    const zoomLabel = dom.primaryStage.querySelector("[data-tree-zoom-label]");
+    let zoom = getTreeZoom(view);
+    applyTreeZoom(svg, zoomLabel, zoom);
+
+    const setZoom = (nextZoom) => {
+      const clamped = clampTreeZoom(nextZoom);
+      if (clamped === zoom) {
+        return;
+      }
+      zoom = clamped;
+      treeZoomState[view] = zoom;
+      applyTreeZoom(svg, zoomLabel, zoom);
+    };
+
+    if (zoomInButton) {
+      zoomInButton.addEventListener("click", () => setZoom(zoom + TREE_ZOOM_STEP));
+    }
+    if (zoomOutButton) {
+      zoomOutButton.addEventListener("click", () => setZoom(zoom - TREE_ZOOM_STEP));
+    }
+    if (zoomResetButton) {
+      zoomResetButton.addEventListener("click", () => {
+        zoom = 1;
+        treeZoomState[view] = zoom;
+        applyTreeZoom(svg, zoomLabel, zoom);
+      });
+    }
+
+    viewport.addEventListener("wheel", (event) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      const direction = event.deltaY < 0 ? 1 : -1;
+      setZoom(zoom + direction * TREE_ZOOM_STEP);
+      event.preventDefault();
+    }, { passive: false });
+  }
+
+  function attachCallTreeFrameLinking(dom) {
+    const clickableNodes = dom.primaryStage.querySelectorAll("[data-call-node-id]");
+    if (!clickableNodes.length || !dom.flowSidebar) {
+      return;
+    }
+
+    clickableNodes.forEach((nodeElement) => {
+      const focus = () => {
+        const nodeId = nodeElement.getAttribute("data-call-node-id");
+        if (!nodeId) {
+          return;
+        }
+        focusFrameCard(dom.flowSidebar, nodeId);
+      };
+
+      nodeElement.addEventListener("click", focus);
+      nodeElement.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        focus();
+      });
+    });
+  }
+
+  function focusFrameCard(flowSidebar, nodeId) {
+    const selector = `[data-node-id="${escapeCssValue(nodeId)}"]`;
+    const target = flowSidebar.querySelector(selector);
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({
+      block: "center",
+      inline: "nearest",
+      behavior: "smooth",
+    });
+    target.classList.remove("flash-focus");
+    void target.offsetWidth;
+    target.classList.add("flash-focus");
+    window.setTimeout(() => {
+      target.classList.remove("flash-focus");
+    }, 1400);
+  }
+
+  function escapeCssValue(text) {
+    return String(text || "")
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
+  }
+
   function buildSummaryMarkup(step, activeFrame, state) {
     const structures = state.runResult.analysis.structures || [];
     const lineSource = step && step.line_source ? step.line_source.trim() : "";
@@ -844,6 +979,9 @@
 
   function buildStackMarkup(structure) {
     const items = structure.items || [];
+    const orderedItems = items
+      .map((item, index) => ({ item, index }))
+      .reverse();
     return `
       <div class="stage-scroll">
         <div class="visual-caption">
@@ -851,10 +989,10 @@
         </div>
         <div class="structure-board">
           <div class="stack-visual">
-            ${items.length
-              ? items
+            ${orderedItems.length
+              ? orderedItems
                   .map(
-                    (item, index) => `
+                    ({ item, index }) => `
                       <div class="stack-item ${index === structure.top_index ? "top" : ""}">
                         <span class="structure-tag">${index === structure.top_index ? "TOP" : `#${index}`}</span>
                         ${utils.escapeHtml(item)}
@@ -903,41 +1041,59 @@
     `;
   }
 
-  function buildDataTreeMarkup(structure) {
+  function buildDataTreeMarkup(structure, zoom) {
     const layout = buildHierarchyLayout(structure.root);
     return `
       <div class="stage-scroll">
         <div class="visual-caption">
           <span><span class="legend-dot current"></span>현재 노드</span>
         </div>
-        <svg class="tree-svg" viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="xMidYMid meet">
-          ${layout.edges
-            .map(
-              (edge) => `
-                <path
-                  class="tree-edge"
-                  d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}"
-                  fill="none"
-                />
-              `,
-            )
-            .join("")}
-          ${layout.nodes
-            .map(
-              (node) => `
-                <g class="data-tree-node ${node.id === structure.current_id ? "current" : ""}" transform="translate(${node.x - 64}, ${node.y - 20})">
-                  <rect rx="14" ry="14" width="128" height="40"></rect>
-                  <text x="12" y="24">${utils.escapeXml(utils.trimLabel(node.label, 17))}</text>
-                </g>
-              `,
-            )
-            .join("")}
-        </svg>
+        <div class="tree-tools">
+          <div class="tree-zoom-group">
+            <button type="button" class="tree-zoom-button" data-tree-zoom="out" aria-label="축소">-</button>
+            <span class="tree-zoom-label" data-tree-zoom-label>${formatTreeZoom(zoom)}</span>
+            <button type="button" class="tree-zoom-button" data-tree-zoom="in" aria-label="확대">+</button>
+            <button type="button" class="tree-zoom-reset" data-tree-zoom="reset">100%</button>
+          </div>
+        </div>
+        <div class="tree-viewport" data-tree-viewport>
+          <svg
+            class="tree-svg"
+            data-tree-svg
+            data-base-width="${layout.width}"
+            data-base-height="${layout.height}"
+            viewBox="0 0 ${layout.width} ${layout.height}"
+            preserveAspectRatio="xMidYMid meet"
+            style="width:${Math.round(layout.width * zoom)}px;height:${Math.round(layout.height * zoom)}px;"
+          >
+            ${layout.edges
+              .map(
+                (edge) => `
+                  <path
+                    class="tree-edge"
+                    d="M ${edge.from.x} ${edge.from.y + 20} C ${edge.from.x} ${edge.from.y + 66}, ${edge.to.x} ${edge.to.y - 66}, ${edge.to.x} ${edge.to.y - 20}"
+                    fill="none"
+                  />
+                `,
+              )
+              .join("")}
+            ${layout.nodes
+              .map(
+                (node) => `
+                  <g class="data-tree-node ${node.id === structure.current_id ? "current" : ""}" transform="translate(${node.x - 64}, ${node.y - 20})">
+                    <rect rx="14" ry="14" width="128" height="40"></rect>
+                    <text x="12" y="24">${utils.escapeXml(utils.trimLabel(node.label, 17))}</text>
+                  </g>
+                `,
+              )
+              .join("")}
+          </svg>
+        </div>
       </div>
     `;
   }
 
-  function buildCallTreeMarkup(tree) {
+  function buildCallTreeMarkup(tree, zoom) {
     const normalized = normalizeCallTreeRoot(tree);
     const layout = buildHierarchyLayout(normalized);
     return `
@@ -946,30 +1102,55 @@
           <span><span class="legend-dot current"></span>활성 호출</span>
           <span><span class="legend-dot"></span>비활성 호출</span>
         </div>
-        <svg class="tree-svg" viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="xMidYMid meet">
-          ${layout.edges
-            .map(
-              (edge) => `
-                <path
-                  class="tree-edge"
-                  d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}"
-                  fill="none"
-                />
-              `,
-            )
-            .join("")}
-          ${layout.nodes
-            .map(
-              (node) => `
-                <g class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}" transform="translate(${node.x - 70}, ${node.y - 24})">
-                  <rect rx="14" ry="14" width="140" height="48"></rect>
-                  <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
-                  <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
-                </g>
-              `,
-            )
-            .join("")}
-        </svg>
+        <div class="tree-tools">
+          <div class="tree-zoom-group">
+            <button type="button" class="tree-zoom-button" data-tree-zoom="out" aria-label="축소">-</button>
+            <span class="tree-zoom-label" data-tree-zoom-label>${formatTreeZoom(zoom)}</span>
+            <button type="button" class="tree-zoom-button" data-tree-zoom="in" aria-label="확대">+</button>
+            <button type="button" class="tree-zoom-reset" data-tree-zoom="reset">100%</button>
+          </div>
+        </div>
+        <div class="tree-viewport" data-tree-viewport>
+          <svg
+            class="tree-svg"
+            data-tree-svg
+            data-base-width="${layout.width}"
+            data-base-height="${layout.height}"
+            viewBox="0 0 ${layout.width} ${layout.height}"
+            preserveAspectRatio="xMidYMid meet"
+            style="width:${Math.round(layout.width * zoom)}px;height:${Math.round(layout.height * zoom)}px;"
+          >
+            ${layout.edges
+              .map(
+                (edge) => `
+                  <path
+                    class="tree-edge"
+                    d="M ${edge.from.x} ${edge.from.y + 24} C ${edge.from.x} ${edge.from.y + 72}, ${edge.to.x} ${edge.to.y - 72}, ${edge.to.x} ${edge.to.y - 24}"
+                    fill="none"
+                  />
+                `,
+              )
+              .join("")}
+            ${layout.nodes
+              .map(
+                (node) => `
+                  <g
+                    class="tree-node clickable ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}"
+                    data-call-node-id="${utils.escapeXml(String(node.id || ""))}"
+                    tabindex="0"
+                    role="button"
+                    aria-label="${utils.escapeXml(utils.trimLabel(node.label, 19))} 프레임으로 이동"
+                    transform="translate(${node.x - 70}, ${node.y - 24})"
+                  >
+                    <rect rx="14" ry="14" width="140" height="48"></rect>
+                    <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
+                    <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
+                  </g>
+                `,
+              )
+              .join("")}
+          </svg>
+        </div>
       </div>
     `;
   }
@@ -989,32 +1170,34 @@
   function buildHierarchyLayout(root) {
     const nodes = [];
     const edges = [];
-    const xGap = 188;
-    const yGap = 92;
-    const tracker = { nextY: 76, maxDepth: 0 };
+    const xGap = 172;
+    const yGap = 116;
+    const tracker = { nextX: 96, maxDepth: 0, maxX: 0 };
 
     function assign(node, depth) {
       tracker.maxDepth = Math.max(tracker.maxDepth, depth);
       const children = node.children || [];
 
       if (!children.length) {
-        node.x = 90 + depth * xGap;
-        node.y = tracker.nextY;
-        tracker.nextY += yGap;
+        node.x = tracker.nextX;
+        node.y = 72 + depth * yGap;
+        tracker.maxX = Math.max(tracker.maxX, node.x);
+        tracker.nextX += xGap;
         return;
       }
 
       children.forEach((child) => assign(child, depth + 1));
-      node.x = 90 + depth * xGap;
-      node.y = utils.average(children.map((child) => child.y));
+      node.x = utils.average(children.map((child) => child.x));
+      node.y = 72 + depth * yGap;
+      tracker.maxX = Math.max(tracker.maxX, node.x);
     }
 
     function collect(node, parent) {
       nodes.push(node);
       if (parent) {
         edges.push({
-          from: { x: parent.x + 70, y: parent.y },
-          to: { x: node.x - 70, y: node.y },
+          from: { x: parent.x, y: parent.y },
+          to: { x: node.x, y: node.y },
         });
       }
       (node.children || []).forEach((child) => collect(child, node));
@@ -1026,8 +1209,8 @@
     return {
       nodes,
       edges,
-      width: Math.max(420, 240 + tracker.maxDepth * xGap),
-      height: Math.max(300, tracker.nextY),
+      width: Math.max(420, tracker.maxX + 108),
+      height: Math.max(320, 192 + tracker.maxDepth * yGap),
     };
   }
 

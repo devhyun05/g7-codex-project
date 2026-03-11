@@ -142,6 +142,64 @@
   min-height: 320px;
 }
 
+.tree-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tree-zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: #fffdf8;
+}
+
+.tree-zoom-button,
+.tree-zoom-reset {
+  border: 1px solid var(--stroke);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.82rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tree-zoom-button {
+  width: 28px;
+  height: 28px;
+}
+
+.tree-zoom-reset {
+  height: 28px;
+  padding: 0 10px;
+}
+
+.tree-zoom-label {
+  min-width: 48px;
+  text-align: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tree-viewport {
+  overflow: auto;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.tree-viewport .tree-svg {
+  display: block;
+  min-width: 420px;
+  min-height: 320px;
+}
+
 .graph-meta,
 .graph-label {
   font-family: "IBM Plex Mono", monospace;
@@ -181,6 +239,20 @@
 .tree-node.exception rect {
   fill: var(--rose-soft);
   stroke: var(--rose);
+}
+
+.tree-node.clickable {
+  cursor: pointer;
+}
+
+.tree-node.clickable rect {
+  transition: stroke 0.16s ease, fill 0.16s ease;
+}
+
+.tree-node.clickable:hover rect,
+.tree-node.clickable:focus rect {
+  stroke: rgba(184, 84, 80, 0.56);
+  fill: rgba(184, 84, 80, 0.12);
 }
 
 .data-tree-node text,

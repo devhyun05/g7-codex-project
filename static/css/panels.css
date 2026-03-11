@@ -266,11 +266,18 @@
   align-content: start;
 }
 
+.explanation-board {
+  padding: 10px;
+  background: linear-gradient(180deg, #fffdfc 0%, #f8f4f1 100%);
+}
+
 .info-card {
   padding: 12px;
   border-radius: 14px;
-  background: #f9fbfd;
-  border: 1px solid var(--stroke);
+  background: #f4f7fa;
+  border: 1px solid rgba(42, 33, 29, 0.14);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .info-card h3 {
@@ -298,16 +305,18 @@
   border-radius: 12px;
   background: #fff;
   border: 1px solid var(--stroke);
+  min-width: 0;
 }
 
 .line-explanation-item.active {
-  border-color: rgba(184, 84, 80, 0.42);
-  background: rgba(184, 84, 80, 0.08);
+  border-color: rgba(184, 84, 80, 0.5);
+  background: rgba(184, 84, 80, 0.1);
 }
 
 .line-explanation-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -337,6 +346,7 @@
   border: 1px solid rgba(184, 84, 80, 0.08);
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.82rem;
   line-height: 1.5;
