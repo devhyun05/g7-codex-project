@@ -84,6 +84,11 @@
   color: var(--accent-strong);
 }
 
+.chip-error {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
 .inline-slider {
   width: 180px;
   accent-color: var(--accent);
@@ -131,6 +136,7 @@
 
 .editor-field {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 6px;
   min-height: 0;
 }
@@ -157,6 +163,14 @@
 #code-input {
   min-height: 0;
   height: 100%;
+}
+
+.editor-idle .editor-grid {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.editor-idle .editor-field:first-child {
+  min-height: 0;
 }
 
 .stdin-input {
@@ -222,6 +236,10 @@
   display: grid;
   gap: 12px;
   align-content: start;
+}
+
+.output-error-body {
+  align-items: start;
 }
 
 .stdout-pre {

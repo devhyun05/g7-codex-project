@@ -3,6 +3,7 @@
 
   function getRefs() {
     return {
+      homeButton: document.getElementById("home-button"),
       codeInput: document.getElementById("code-input"),
       stdinInput: document.getElementById("stdin-input"),
       runButton: document.getElementById("run-button"),
@@ -13,11 +14,15 @@
       stepCounter: document.getElementById("step-counter"),
       functionPill: document.getElementById("function-pill"),
       linePill: document.getElementById("line-pill"),
+      editorMetaPills: document.getElementById("editor-meta-pills"),
       editCodeButton: document.getElementById("edit-code-button"),
       editorWrap: document.getElementById("editor-wrap"),
       traceWorkspace: document.getElementById("trace-workspace"),
       codeViewer: document.getElementById("code-viewer"),
       flowSidebar: document.getElementById("flow-sidebar"),
+      outputPanel: document.getElementById("output-panel"),
+      outputPanelTitle: document.getElementById("output-panel-title"),
+      outputPanelCaption: document.getElementById("output-panel-caption"),
       outputView: document.getElementById("output-view"),
       outputStatus: document.getElementById("output-status"),
       stageTitle: document.getElementById("stage-title"),
@@ -25,7 +30,10 @@
       primaryStage: document.getElementById("primary-stage"),
       eventLabel: document.getElementById("event-label"),
       primaryViewLabel: document.getElementById("primary-view-label"),
+      explanationPanel: document.getElementById("explanation-panel"),
       explanationView: document.getElementById("explanation-view"),
+      workspaceLeft: document.getElementById("workspace-left"),
+      workspaceRight: document.getElementById("workspace-right"),
       workspaceGrid: document.querySelector(".workspace-grid"),
       workspaceSplitter: document.getElementById("workspace-splitter"),
     };

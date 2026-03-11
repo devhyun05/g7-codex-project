@@ -13,6 +13,7 @@ import itertools
 import math
 import operator
 import random
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -23,7 +24,7 @@ from .code_analysis import analyze_code_structures
 from .structure_detection import StructureDetector
 
 USER_FILENAME = "<visualizer>"
-MAX_ITEMS = 8
+MAX_ITEMS = 256
 MAX_DEPTH = 3
 MAX_REPR_LENGTH = 96
 
@@ -63,13 +64,15 @@ class ExecutionTracer:
         try:
             compiled = compile(normalized_code, USER_FILENAME, "exec")
         except SyntaxError as exc:
+            raw_error = self._format_syntax_error(exc)
             return {
                 "ok": False,
                 "code": normalized_code,
                 "stdin": stdin,
                 "steps": [],
                 "stdout": "",
-                "error": self._format_syntax_error(exc),
+                "error": raw_error,
+                "display_error": self._format_display_error(exc),
                 "analysis": self.code_analysis,
             }
 
@@ -86,8 +89,10 @@ class ExecutionTracer:
                 exec(compiled, self.globals_env, self.globals_env)
         except TraceLimitExceeded as exc:
             self.error = str(exc)
+            self.display_error = self._format_display_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.error = f"{type(exc).__name__}: {exc}"
+            self.display_error = self._format_display_error(exc)
         finally:
             sys.settrace(previous_trace)
 
@@ -101,6 +106,7 @@ class ExecutionTracer:
             "steps": self.steps,
             "stdout": self.stdout,
             "error": self.error,
+            "display_error": self.display_error,
             "analysis": self.code_analysis,
         }
 
@@ -114,10 +120,16 @@ class ExecutionTracer:
         self.stdout_buffer = io.StringIO()
         self.stdout = ""
         self.error: str | None = None
+        self.display_error: str | None = None
         self.step_count = 0
         self.started_at = time.perf_counter()
         self.globals_env: dict[str, Any] = {}
-        self.code_analysis: dict[str, Any] = {"structures": [], "intent_map": {}, "summary": ""}
+        self.code_analysis: dict[str, Any] = {
+            "structures": [],
+            "intent_map": {},
+            "summary": "",
+            "intents": {"sorting": False, "sorting_order": "unknown"},
+        }
         self.detector = StructureDetector(self._short_repr, self.code_analysis)
         self.call_root = {
             "id": "root",
@@ -939,6 +951,10 @@ class ExecutionTracer:
         return "?"
 
     def _describe_visual_target(self, snapshot: dict[str, Any]) -> str:
+        intents = self.code_analysis.get("intents") or {}
+        if intents.get("sorting") and snapshot.get("call_tree", {}).get("children"):
+            return "정렬 알고리즘으로 판단되어 호출 트리를 우선 표시합니다."
+
         if snapshot.get("graph"):
             graph_name = snapshot["graph"].get("name") or "graph"
             return f"`{graph_name}` 인접 구조를 그래프로 판단해 흐름을 그립니다."
@@ -981,6 +997,103 @@ class ExecutionTracer:
     def _format_syntax_error(self, exc: SyntaxError) -> str:
         location = f"{exc.lineno}번째 줄" if exc.lineno else "문법 분석 단계"
         return f"SyntaxError ({location}): {exc.msg}"
+
+    def _format_display_error(self, exc: BaseException) -> str:
+        if isinstance(exc, SyntaxError):
+            return self._format_display_syntax_error(exc)
+
+        if isinstance(exc, EOFError):
+            return (
+                "입력 데이터가 부족합니다. `input()` 호출 수만큼 입력 데이터 칸에 "
+                "줄 단위로 값을 더 넣어 주세요."
+            )
+
+        if isinstance(exc, ImportError):
+            return (
+                "이 시각화기에서는 일부 모듈만 사용할 수 있습니다. 허용되지 않은 "
+                "import를 제거하거나 지원되는 표준 모듈만 사용해 주세요."
+            )
+
+        if isinstance(exc, NameError):
+            missing_name = self._extract_missing_name(str(exc))
+            if missing_name:
+                return (
+                    f"`{missing_name}` 이름을 아직 정의하지 않았습니다. 변수나 함수 이름 "
+                    "오타, 선언 순서를 확인해 주세요."
+                )
+            return (
+                "정의되지 않은 이름을 사용했습니다. 변수나 함수 이름 오타, 선언 순서를 "
+                "확인해 주세요."
+            )
+
+        if isinstance(exc, TypeError):
+            return (
+                "값의 종류가 연산이나 호출 방식과 맞지 않습니다. 함수 인자 개수와 "
+                "자료형 조합을 확인해 주세요."
+            )
+
+        if isinstance(exc, ValueError):
+            if "invalid literal for int()" in str(exc):
+                return (
+                    "숫자로 바꾸려는 값 형식이 올바르지 않습니다. 입력 데이터에 숫자가 "
+                    "아닌 문자가 섞여 있지 않은지 확인해 주세요."
+                )
+            return (
+                "값의 형식이 기대한 형태와 다릅니다. 형변환 대상이나 입력값 형식을 "
+                "다시 확인해 주세요."
+            )
+
+        if isinstance(exc, IndexError):
+            return (
+                "리스트나 튜플 범위를 벗어난 위치에 접근했습니다. 인덱스 계산과 반복 "
+                "범위를 확인해 주세요."
+            )
+
+        if isinstance(exc, KeyError):
+            return (
+                "딕셔너리에 없는 키에 접근했습니다. 키가 실제로 존재하는지 먼저 확인해 "
+                "주세요."
+            )
+
+        if isinstance(exc, ZeroDivisionError):
+            return (
+                "0으로 나누려고 했습니다. 나누는 값이 0이 아닌지 먼저 확인해 주세요."
+            )
+
+        if isinstance(exc, TraceLimitExceeded):
+            if "실행 시간" in str(exc):
+                return (
+                    "실행 시간이 너무 길어 중단했습니다. 무한 루프이거나 계산량이 큰 "
+                    "코드일 수 있으니 범위를 줄여 다시 실행해 주세요."
+                )
+            return (
+                "실행 단계가 너무 많아 중단했습니다. 반복문 종료 조건이나 재귀 종료 "
+                "조건을 확인해 주세요."
+            )
+
+        return (
+            f"실행 중 {type(exc).__name__}가 발생했습니다. 최근에 수정한 줄과 변수 값을 "
+            "다시 확인해 주세요."
+        )
+
+    def _format_display_syntax_error(self, exc: SyntaxError) -> str:
+        location = f"{exc.lineno}번째 줄" if exc.lineno else "문법 분석 단계"
+        lowered = (exc.msg or "").lower()
+
+        if "expected ':'" in lowered:
+            hint = "if, for, while, def, class 문장 끝에 콜론(:)이 있는지 확인해 주세요."
+        elif "indent" in lowered:
+            hint = "들여쓰기 깊이를 맞추고 탭과 공백이 섞이지 않았는지 확인해 주세요."
+        elif "eof" in lowered or "was never closed" in lowered or "unclosed" in lowered:
+            hint = "괄호, 대괄호, 문자열 따옴표가 모두 닫혔는지 확인해 주세요."
+        else:
+            hint = "괄호, 콜론, 들여쓰기, 문자열 닫힘을 차례로 확인해 주세요."
+
+        return f"{location}에서 문법 오류가 있습니다. {hint}"
+
+    def _extract_missing_name(self, message: str) -> str | None:
+        match = re.search(r"name '(.+?)' is not defined", message)
+        return match.group(1) if match else None
 
     def _short_repr(self, value: Any) -> str:
         try:
