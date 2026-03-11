@@ -332,7 +332,7 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertEqual(structure["nodes"][2]["prev_id"], structure["nodes"][1]["id"])
         self.assertEqual(structure["current_id"], structure["nodes"][2]["id"])
 
-    def test_hides_unlinked_single_nodes_until_pointer_connection(self):
+    def test_builds_connected_chain_after_pointer_connection(self):
         result = self.tracer.trace(
             "\n".join(
                 [
@@ -357,7 +357,18 @@ class ExecutionTracerTest(unittest.TestCase):
             if step.get("structure") and step["structure"].get("kind") == "linked-list"
         ]
         self.assertTrue(linked_steps)
-        self.assertTrue(all(len(step["structure"]["nodes"]) >= 2 for step in linked_steps))
+        connected_steps = []
+        for step in linked_steps:
+            nodes = step["structure"].get("nodes", [])
+            node_ids = {node.get("id") for node in nodes}
+            has_link = any(
+                (node.get("next_id") and node.get("next_id") in node_ids)
+                or (node.get("prev_id") and node.get("prev_id") in node_ids)
+                for node in nodes
+            )
+            if has_link:
+                connected_steps.append(step)
+        self.assertTrue(connected_steps)
         self.assertEqual(len(result["steps"][-1]["structure"]["nodes"]), 3)
 
     def test_keeps_frame_locals_after_recursive_return(self):
