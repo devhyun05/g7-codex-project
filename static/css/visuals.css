@@ -54,6 +54,29 @@
   gap: 6px;
 }
 
+.structure-guide-search {
+  display: grid;
+}
+
+.structure-guide-search-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(34, 29, 23, 0.12);
+  border-radius: 14px;
+  background: #fffdf8;
+  color: var(--ink);
+}
+
+.structure-guide-search-input::placeholder {
+  color: var(--muted);
+}
+
+.structure-guide-search-input:focus {
+  outline: none;
+  border-color: rgba(211, 106, 53, 0.48);
+  box-shadow: 0 0 0 4px rgba(211, 106, 53, 0.12);
+}
+
 .guide-pattern {
   display: inline-block;
   margin-bottom: 4px;
@@ -71,6 +94,16 @@
   border: 1px dashed rgba(34, 29, 23, 0.16);
   background: rgba(242, 235, 224, 0.55);
   color: var(--muted);
+  line-height: 1.55;
+}
+
+.structure-guide-empty {
+  padding: 18px 14px;
+  border-radius: 16px;
+  border: 1px dashed rgba(34, 29, 23, 0.16);
+  background: rgba(252, 250, 246, 0.9);
+  color: var(--muted);
+  text-align: center;
   line-height: 1.55;
 }
 

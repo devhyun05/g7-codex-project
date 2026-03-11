@@ -11,6 +11,7 @@
     dom.traceWorkspace.classList.toggle("hidden", !traceMode);
     dom.editCodeButton.classList.toggle("hidden", !traceMode);
     dom.editorMetaPills.classList.toggle("hidden", !traceMode);
+    dom.stepSlider.classList.toggle("hidden", !traceMode);
     dom.editorWrap.classList.toggle("editor-idle", !traceMode);
   }
 
