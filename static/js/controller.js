@@ -174,7 +174,7 @@
     state.primaryView = visualPanel.render(dom, state, step, activeFrame);
     codePanel.renderOutput(
       dom,
-      step ? step.stdout || state.runResult.stdout : state.runResult.stdout,
+      step ? step.stdout || "" : state.runResult.stdout,
       state.runResult.error,
       state.runResult.displayError ?? state.runResult.error,
     );

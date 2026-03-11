@@ -1,18 +1,18 @@
 :root {
-  --bg: #f5f1ea;
-  --surface: #fffdf8;
-  --surface-alt: #f2ebe0;
-  --ink: #221d17;
-  --muted: #6d655b;
-  --stroke: rgba(34, 29, 23, 0.12);
-  --accent: #d36a35;
-  --accent-strong: #b84f1d;
-  --accent-soft: rgba(211, 106, 53, 0.14);
-  --teal: #206b6b;
-  --teal-soft: rgba(32, 107, 107, 0.14);
+  --bg: #f7f3ee;
+  --surface: #fffdfc;
+  --surface-alt: #f1e7e1;
+  --ink: #2a211d;
+  --muted: #6e625b;
+  --stroke: #decfc7;
+  --accent: #b85450;
+  --accent-strong: #943c39;
+  --accent-soft: rgba(184, 84, 80, 0.14);
+  --teal: #8b6f64;
+  --teal-soft: rgba(139, 111, 100, 0.14);
   --rose: #a14c4c;
   --rose-soft: rgba(161, 76, 76, 0.14);
-  --shadow: 0 18px 42px rgba(43, 32, 18, 0.08);
+  --shadow: 0 16px 36px rgba(42, 33, 29, 0.08);
   --radius-lg: 18px;
   --radius-md: 12px;
   --radius-sm: 10px;
@@ -33,7 +33,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  background: linear-gradient(180deg, #f7f3ed 0%, #efe8dc 100%);
+  background: linear-gradient(180deg, #f4ece7 0%, #f7f3ee 38%, #fcf8f6 100%);
   font-family: "IBM Plex Sans KR", sans-serif;
 }
 

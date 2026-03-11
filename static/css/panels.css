@@ -119,8 +119,8 @@
   min-height: 0;
   height: 100%;
   border-radius: 16px;
-  border: 1px solid rgba(34, 29, 23, 0.08);
-  background: #fff;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.97);
 }
 
 .editor-wrap {
@@ -150,9 +150,9 @@
 #code-input,
 .stdin-input {
   width: 100%;
-  border: 1px solid rgba(34, 29, 23, 0.12);
+  border: 1px solid rgba(184, 84, 80, 0.14);
   border-radius: 14px;
-  background: #fcfaf6;
+  background: #fdf8f6;
   color: var(--ink);
   resize: none;
   padding: 12px 14px;
@@ -199,14 +199,14 @@
 }
 
 .code-line.active {
-  background: rgba(211, 106, 53, 0.12);
+  background: rgba(184, 84, 80, 0.14);
   border-left: 4px solid var(--accent);
   padding-left: 8px;
 }
 
 .code-line.previous {
-  background: rgba(109, 101, 91, 0.1);
-  border-left: 4px solid rgba(109, 101, 91, 0.28);
+  background: #d8dde3;
+  border-left: 4px solid rgba(113, 124, 136, 0.72);
   padding-left: 8px;
 }
 
@@ -269,8 +269,8 @@
 .info-card {
   padding: 12px;
   border-radius: 14px;
-  background: #fcfaf6;
-  border: 1px solid rgba(34, 29, 23, 0.08);
+  background: #f9fbfd;
+  border: 1px solid var(--stroke);
 }
 
 .info-card h3 {
@@ -297,12 +297,12 @@
   padding: 12px;
   border-radius: 12px;
   background: #fff;
-  border: 1px solid rgba(34, 29, 23, 0.08);
+  border: 1px solid var(--stroke);
 }
 
 .line-explanation-item.active {
-  border-color: rgba(211, 106, 53, 0.4);
-  background: rgba(211, 106, 53, 0.06);
+  border-color: rgba(184, 84, 80, 0.42);
+  background: rgba(184, 84, 80, 0.08);
 }
 
 .line-explanation-head {
@@ -333,8 +333,8 @@
   margin: 0 0 8px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fcfaf6;
-  border: 1px solid rgba(34, 29, 23, 0.06);
+  background: #fdf8f6;
+  border: 1px solid rgba(184, 84, 80, 0.08);
   white-space: pre-wrap;
   word-break: break-word;
   font-family: "IBM Plex Mono", monospace;
