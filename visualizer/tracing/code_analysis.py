@@ -4,6 +4,10 @@ import ast
 from collections import defaultdict
 from typing import Any
 
+LINKED_NEXT_KEYS = {"next", "next_node", "nextNode", "nxt"}
+LINKED_PREV_KEYS = {"prev", "previous", "prev_node", "prevNode", "prv"}
+LINKED_POINTER_KEYS = LINKED_NEXT_KEYS | LINKED_PREV_KEYS
+
 
 def analyze_code_structures(code: str) -> dict[str, Any]:
     try:
@@ -26,6 +30,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         self.collection_aliases = {"collections"}
         self.deque_aliases: set[str] = set()
         self.node_like_classes: set[str] = set()
+        self.linked_node_classes: set[str] = set()
         self.method_ops: dict[str, set[str]] = defaultdict(set)
         self.hints: dict[str, dict[str, Any]] = {}
         self.sorting_detected = False
@@ -94,6 +99,8 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
 
         if {"left", "right"} & attrs or "children" in attrs:
             self.node_like_classes.add(node.name)
+        if LINKED_POINTER_KEYS & attrs:
+            self.linked_node_classes.add(node.name)
 
         self.generic_visit(node)
 
@@ -175,6 +182,15 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             )
             return
 
+        if self._is_linked_list_literal(value):
+            self._set_hint(
+                name,
+                "linked-list",
+                "next/prev 포인터를 가진 노드 체인으로 판단했습니다.",
+                89,
+            )
+            return
+
         if self._is_tree_literal(value):
             self._set_hint(
                 name,
@@ -192,6 +208,13 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
                     "tree",
                     f"{call_name} 노드 객체를 대입해 트리 루트로 판단했습니다.",
                     86,
+                )
+            if call_name in self.linked_node_classes:
+                self._set_hint(
+                    name,
+                    "linked-list",
+                    f"{call_name} 노드 객체를 대입해 연결 리스트 head로 판단했습니다.",
+                    87,
                 )
 
     def _set_hint(self, name: str, kind: str, reason: str, score: int) -> None:
@@ -257,6 +280,25 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             or "right" in keyword_names
             or "children" in keyword_names
         )
+
+    def _is_linked_list_literal(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Dict):
+            keys = {
+                key.value
+                for key in value.keys
+                if isinstance(key, ast.Constant) and isinstance(key.value, str)
+            }
+            return bool(LINKED_POINTER_KEYS & keys)
+
+        if not isinstance(value, ast.Call):
+            return False
+
+        call_name = self._call_name(value.func)
+        if call_name in self.linked_node_classes:
+            return True
+
+        keyword_names = {keyword.arg for keyword in value.keywords if keyword.arg}
+        return bool(LINKED_POINTER_KEYS & keyword_names)
 
     def _call_name(self, func: ast.AST) -> str:
         if isinstance(func, ast.Name):

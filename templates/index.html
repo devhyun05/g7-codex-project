@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -27,11 +27,27 @@
     <div class="page-shell">
       <header class="topbar">
         <div class="brand">
-          <h1 id="home-button" class="brand-home" role="button" tabindex="0" aria-label="초기 화면으로 이동">Python Flow Visualizer</h1>
+          <h1
+            id="home-button"
+            class="brand-home"
+            role="button"
+            tabindex="0"
+            aria-label="초기 화면으로 이동"
+          >
+            Python Flow Visualizer
+          </h1>
         </div>
         <div class="toolbar">
-          <button id="edit-code-button" class="ghost-button hidden" type="button">코드 수정</button>
-          <button id="run-button" class="primary-button" type="button">실행 시작</button>
+          <button
+            id="edit-code-button"
+            class="ghost-button hidden"
+            type="button"
+          >
+            코드 수정
+          </button>
+          <button id="run-button" class="primary-button" type="button">
+            실행 시작
+          </button>
         </div>
       </header>
 
@@ -53,10 +69,50 @@
                     <strong id="function-pill">module</strong>
                   </span>
                 </div>
-                <span id="line-pill" class="line-readout hidden" aria-hidden="true">-</span>
+
+                <label class="editor-field" for="language-select">
+                  <span class="editor-label">Language</span>
+                  <select
+                    id="language-select"
+                    aria-label="Programming language"
+                  >
+                    <option value="auto">Auto Detect</option>
+                    <option value="python">Python</option>
+                    <option value="cpp">C++</option>
+                    <option value="java">Java</option>
+                    <option value="c">C</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="kotlin">Kotlin</option>
+                    <option value="go">Go</option>
+                    <option value="rust">Rust</option>
+                    <option value="csharp">C#</option>
+                  </select>
+                </label>
+
+                <span
+                  id="line-pill"
+                  class="line-readout hidden"
+                  aria-hidden="true"
+                  >-</span
+                >
                 <div class="slider-controls">
-                  <button id="play-step" class="step-button" type="button" disabled>재생</button>
-                  <button id="prev-step" class="step-button" type="button" disabled>이전</button>
+                  <button
+                    id="play-step"
+                    class="step-button"
+                    type="button"
+                    disabled
+                  >
+                    재생
+                  </button>
+                  <button
+                    id="prev-step"
+                    class="step-button"
+                    type="button"
+                    disabled
+                  >
+                    이전
+                  </button>
                   <input
                     id="step-slider"
                     class="inline-slider"
@@ -66,7 +122,14 @@
                     value="0"
                     disabled
                   />
-                  <button id="next-step" class="step-button" type="button" disabled>다음</button>
+                  <button
+                    id="next-step"
+                    class="step-button"
+                    type="button"
+                    disabled
+                  >
+                    다음
+                  </button>
                 </div>
               </div>
             </div>
@@ -91,7 +154,10 @@
                     aria-label="Python stdin input"
                     placeholder="input()이 필요하면 줄 단위로 입력하세요."
                   ></textarea>
-                  <span class="editor-hint">`input()` 호출 순서대로 위에서부터 한 줄씩 소비됩니다.</span>
+                  <span class="editor-hint"
+                    >`input()` 호출 순서대로 위에서부터 한 줄씩
+                    소비됩니다.</span
+                  >
                 </label>
               </div>
             </div>
@@ -110,7 +176,9 @@
             <div class="panel-head compact">
               <div>
                 <h2 id="output-panel-title">출력</h2>
-                <p id="output-panel-caption" class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
+                <p id="output-panel-caption" class="panel-caption">
+                  선택한 step 시점까지의 stdout과 오류를 보여줍니다.
+                </p>
               </div>
               <span id="output-status" class="chip">IDLE</span>
             </div>
@@ -140,7 +208,9 @@
               </div>
               <div class="panel-actions">
                 <span id="event-label" class="chip">대기</span>
-                <span id="primary-view-label" class="chip chip-accent">GUIDE</span>
+                <span id="primary-view-label" class="chip chip-accent"
+                  >GUIDE</span
+                >
               </div>
             </div>
             <div id="primary-stage" class="visual-stage">
@@ -155,32 +225,64 @@
                   />
                 </div>
                 <div class="summary-grid structure-guide-grid" data-guide-grid>
-                  <article class="summary-card guide-card" data-guide-card data-search-text="stack 스택 append() + pop() 흐름을 top 중심으로 표시합니다.">
+                  <article
+                    class="summary-card guide-card"
+                    data-guide-card
+                    data-search-text="stack 스택 append() + pop() 흐름을 top 중심으로 표시합니다."
+                  >
                     <span class="summary-label">STACK</span>
                     <strong>스택</strong>
-                    <p><span class="guide-pattern">append() + pop()</span> 흐름을 top 중심으로 표시합니다.</p>
+                    <p>
+                      <span class="guide-pattern">append() + pop()</span> 흐름을
+                      top 중심으로 표시합니다.
+                    </p>
                   </article>
-                  <article class="summary-card guide-card" data-guide-card data-search-text="queue 큐 deque / popleft() / pop(0) 패턴을 front와 back으로 구분합니다.">
+                  <article
+                    class="summary-card guide-card"
+                    data-guide-card
+                    data-search-text="queue 큐 deque / popleft() / pop(0) 패턴을 front와 back으로 구분합니다."
+                  >
                     <span class="summary-label">QUEUE</span>
                     <strong>큐</strong>
-                    <p><span class="guide-pattern">deque / popleft() / pop(0)</span> 패턴을 front와 back으로 구분합니다.</p>
+                    <p>
+                      <span class="guide-pattern"
+                        >deque / popleft() / pop(0)</span
+                      >
+                      패턴을 front와 back으로 구분합니다.
+                    </p>
                   </article>
-                  <article class="summary-card guide-card" data-guide-card data-search-text="tree 트리 left / right / children 관계를 노드 구조로 정리합니다.">
+                  <article
+                    class="summary-card guide-card"
+                    data-guide-card
+                    data-search-text="tree 트리 left / right / children 관계를 노드 구조로 정리합니다."
+                  >
                     <span class="summary-label">TREE</span>
                     <strong>트리</strong>
-                    <p><span class="guide-pattern">left / right / children</span> 관계를 노드 구조로 정리합니다.</p>
+                    <p>
+                      <span class="guide-pattern">left / right / children</span>
+                      관계를 노드 구조로 정리합니다.
+                    </p>
                   </article>
-                  <article class="summary-card guide-card" data-guide-card data-search-text="graph 그래프 인접 리스트 / 인접 딕셔너리 연결과 방문 상태를 보여줍니다.">
+                  <article
+                    class="summary-card guide-card"
+                    data-guide-card
+                    data-search-text="graph 그래프 인접 리스트 / 인접 딕셔너리 연결과 방문 상태를 보여줍니다."
+                  >
                     <span class="summary-label">GRAPH</span>
                     <strong>그래프</strong>
-                    <p><span class="guide-pattern">인접 리스트 / 인접 딕셔너리</span>를 기반으로 연결과 방문 상태를 보여줍니다.</p>
+                    <p>
+                      <span class="guide-pattern"
+                        >인접 리스트 / 인접 딕셔너리</span
+                      >를 기반으로 연결과 방문 상태를 보여줍니다.
+                    </p>
                   </article>
                 </div>
                 <div class="structure-guide-empty hidden" data-guide-empty>
                   검색 결과가 없습니다. 다른 키워드로 다시 찾아보세요.
                 </div>
                 <div class="structure-guide-note">
-                  재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
+                  재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행
+                  요약으로 표시됩니다.
                 </div>
               </div>
             </div>
@@ -190,7 +292,9 @@
             <div class="panel-head compact">
               <div>
                 <h2>코드 설명</h2>
-                <p class="panel-caption">현재 step 설명과 자동 판단된 자료구조를 함께 정리합니다.</p>
+                <p class="panel-caption">
+                  현재 step 설명과 자동 판단된 자료구조를 함께 정리합니다.
+                </p>
               </div>
             </div>
             <div id="explanation-view" class="support-body empty-state">
