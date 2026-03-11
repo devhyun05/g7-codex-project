@@ -192,7 +192,7 @@
 
 .linked-list-lane {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 4px;
@@ -205,13 +205,41 @@
 }
 
 .linked-node-card {
-  min-width: 92px;
+  min-width: 170px;
   padding: 12px;
   border-radius: 14px;
   border: 1px solid rgba(34, 29, 23, 0.1);
   background: #fff;
   font-family: "IBM Plex Mono", monospace;
-  text-align: center;
+  text-align: left;
+  display: grid;
+  gap: 8px;
+}
+
+.linked-node-name {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.linked-pointer-list {
+  display: grid;
+  gap: 4px;
+}
+
+.linked-pointer {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.linked-pointer.next {
+  color: var(--ink);
+}
+
+.linked-pointer.prev {
+  color: var(--teal);
 }
 
 .linked-node-card.head {
@@ -228,7 +256,11 @@
 .linked-arrow {
   color: var(--ink);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 1rem;
+  font-size: 1.15rem;
+}
+
+.linked-arrow.doubly {
+  color: var(--teal);
 }
 
 .sorting-board {

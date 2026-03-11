@@ -47,7 +47,9 @@
 
     if (view === "linked-list") {
       dom.stageTitle.textContent = "연결 리스트";
-      dom.stageCaption.textContent = "head에서 next로 이어지는 노드 체인을 연결 리스트로 표현합니다.";
+      dom.stageCaption.textContent = linkedListState && linkedListState.list_type === "doubly"
+        ? "doubly linked list로 감지되어 next/prev가 어떤 노드를 가리키는지 함께 표시합니다."
+        : "singly linked list로 감지되어 각 노드의 next 포인터가 가리키는 다음 노드를 표시합니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildLinkedListMarkup(linkedListState);
       return view;
@@ -825,13 +827,24 @@
 
   function buildLinkedListMarkup(structure) {
     const nodes = structure.nodes || [];
+    const listType = structure.list_type === "doubly" ? "doubly" : "singly";
+    const nodeNameMap = new Map(
+      nodes.map((node, index) => [node.id, `N${index + 1}`]),
+    );
+    const nodeName = (nodeId) => {
+      if (!nodeId) {
+        return "null";
+      }
+      return nodeNameMap.get(nodeId) || "node";
+    };
     return `
       <div class="stage-scroll">
         <div class="structure-board">
-          <div class="linked-list-lane">
+          <div class="linked-list-lane ${listType}">
             ${nodes.length
               ? nodes
                   .map((node) => {
+                    const label = nodeName(node.id);
                     const cardClasses = [
                       "linked-node-card",
                       node.id === structure.head_id ? "head" : "",
@@ -839,11 +852,22 @@
                     ]
                       .filter(Boolean)
                       .join(" ");
-                    const arrow = node.next_id ? '<span class="linked-arrow">→</span>' : "";
+                    const nextTarget = nodeName(node.next_id);
+                    const prevPointer = listType === "doubly"
+                      ? `<span class="linked-pointer prev">${utils.escapeHtml(label)}.prev → ${utils.escapeHtml(nodeName(node.prev_id))}</span>`
+                      : "";
+                    const arrow = node.next_id
+                      ? `<span class="linked-arrow ${listType}">${listType === "doubly" ? "⇄" : "→"}</span>`
+                      : "";
                     return `
                       <div class="linked-segment">
                         <div class="${cardClasses}">
+                          <span class="linked-node-name">${utils.escapeHtml(label)}</span>
                           <strong>${utils.escapeHtml(node.label)}</strong>
+                          <div class="linked-pointer-list">
+                            <span class="linked-pointer next">${utils.escapeHtml(label)}.next → ${utils.escapeHtml(nextTarget)}</span>
+                            ${prevPointer}
+                          </div>
                         </div>
                         ${arrow}
                       </div>

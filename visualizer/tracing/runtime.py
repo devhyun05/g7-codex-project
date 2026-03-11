@@ -621,7 +621,7 @@ class ExecutionTracer:
             "stack": "스택으로 판단해 top 중심으로 보여줍니다.",
             "queue": "큐로 판단해 front / back 흐름을 보여줍니다.",
             "tree": "트리로 판단해 현재 노드와 전체 구조를 함께 보여줍니다.",
-            "linked-list": "연결 리스트로 판단해 head에서 next로 이어지는 노드 흐름을 보여줍니다.",
+            "linked-list": "연결 리스트로 판단해 노드 간 next/prev 포인터 흐름을 보여줍니다.",
         }
         return labels.get(structure.get("kind"), "")
 

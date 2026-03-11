@@ -7,6 +7,9 @@ from typing import Any
 MAX_ITEMS = 8
 LINKED_MAX_ITEMS = 128
 LINKED_NEXT_KEYS = ("next", "next_node", "nextNode", "nxt")
+LINKED_PREV_KEYS = ("prev", "previous", "prev_node", "prevNode", "prv")
+LINKED_POINTER_KEYS = LINKED_NEXT_KEYS + LINKED_PREV_KEYS
+LINKED_HEAD_KEYS = ("head", "first", "start")
 
 
 class StructureDetector:
@@ -109,6 +112,12 @@ class StructureDetector:
         scopes: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
         payload = self._build_linked_list_payload(value)
+        from_wrapper = False
+        if not payload:
+            head_value = self._extract_linked_head(value)
+            if head_value is not None:
+                payload = self._build_linked_list_payload(head_value)
+                from_wrapper = bool(payload)
         if not payload:
             return None
 
@@ -119,12 +128,15 @@ class StructureDetector:
             score = 95
         elif lowered in {"head", "list_head", "linked_list", "ll"} or "head" in lowered:
             score = 82
+        elif from_wrapper and ("linked" in lowered or "list" in lowered):
+            score = 78
         score += min(len(payload["nodes"]), 24)
 
         return {
             "_score": score,
             "kind": "linked-list",
             "name": name,
+            "list_type": payload["list_type"],
             "head_id": payload["head_id"],
             "current_id": current_id,
             "nodes": payload["nodes"],
@@ -254,9 +266,10 @@ class StructureDetector:
         nodes: list[dict[str, Any]] = []
         node_ids: set[str] = set()
         seen: set[str] = set()
-        cursor = value
+        cursor = self._resolve_linked_head(value)
         truncated = False
         cycle = False
+        is_doubly = False
 
         while self._is_linked_node(cursor):
             node_id = self._linked_node_id(cursor)
@@ -268,13 +281,18 @@ class StructureDetector:
             node_ids.add(node_id)
 
             next_node = self._extract_linked_next(cursor)
+            prev_node = self._extract_linked_prev(cursor)
             next_id = self._linked_node_id(next_node) if self._is_linked_node(next_node) else None
+            prev_id = self._linked_node_id(prev_node) if self._is_linked_node(prev_node) else None
+            if self._has_linked_prev_field(cursor) or prev_id:
+                is_doubly = True
 
             nodes.append(
                 {
                     "id": node_id,
                     "label": self._extract_linked_label(cursor),
                     "next_id": next_id,
+                    "prev_id": prev_id,
                 }
             )
 
@@ -291,6 +309,7 @@ class StructureDetector:
             return None
 
         return {
+            "list_type": "doubly" if is_doubly else "singly",
             "head_id": nodes[0]["id"],
             "node_ids": node_ids,
             "nodes": nodes,
@@ -303,20 +322,20 @@ class StructureDetector:
             return False
 
         if isinstance(value, dict):
-            if not any(key in value for key in LINKED_NEXT_KEYS):
+            if not any(key in value for key in LINKED_POINTER_KEYS):
                 return False
             if any(key in value for key in ("value", "val", "data", "key")):
                 return True
-            non_link_keys = [key for key in value.keys() if key not in LINKED_NEXT_KEYS]
+            non_link_keys = [key for key in value.keys() if key not in LINKED_POINTER_KEYS]
             return len(non_link_keys) == 1
 
         try:
-            if not any(hasattr(value, key) for key in LINKED_NEXT_KEYS):
+            if not any(hasattr(value, key) for key in LINKED_POINTER_KEYS):
                 return False
             if any(hasattr(value, key) for key in ("value", "val", "data", "key")):
                 return True
             attrs = getattr(value, "__dict__", {})
-            return isinstance(attrs, dict) and len(attrs) <= 4
+            return isinstance(attrs, dict) and len(attrs) <= 5
         except Exception:  # noqa: BLE001
             return False
 
@@ -327,6 +346,53 @@ class StructureDetector:
                     return value.get(key)
             return None
         for key in LINKED_NEXT_KEYS:
+            if hasattr(value, key):
+                return getattr(value, key, None)
+        return None
+
+    def _extract_linked_prev(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            for key in LINKED_PREV_KEYS:
+                if key in value:
+                    return value.get(key)
+            return None
+        for key in LINKED_PREV_KEYS:
+            if hasattr(value, key):
+                return getattr(value, key, None)
+        return None
+
+    def _has_linked_prev_field(self, value: Any) -> bool:
+        if isinstance(value, dict):
+            return any(key in value for key in LINKED_PREV_KEYS)
+        return any(hasattr(value, key) for key in LINKED_PREV_KEYS)
+
+    def _resolve_linked_head(self, value: Any) -> Any:
+        cursor = value
+        seen: set[str] = set()
+        for _ in range(LINKED_MAX_ITEMS):
+            if not self._is_linked_node(cursor):
+                break
+            node_id = self._linked_node_id(cursor)
+            if node_id in seen:
+                break
+            seen.add(node_id)
+            prev_node = self._extract_linked_prev(cursor)
+            if not self._is_linked_node(prev_node):
+                break
+            cursor = prev_node
+        return cursor
+
+    def _extract_linked_head(self, value: Any) -> Any:
+        if value is None:
+            return None
+
+        if isinstance(value, dict):
+            for key in LINKED_HEAD_KEYS:
+                if key in value:
+                    return value.get(key)
+            return None
+
+        for key in LINKED_HEAD_KEYS:
             if hasattr(value, key):
                 return getattr(value, key, None)
         return None
@@ -356,6 +422,15 @@ class StructureDetector:
                 node_id = self._linked_node_id(scope[name])
                 if node_id in node_ids:
                     return node_id
+            for value in scope.values():
+                if value is None:
+                    continue
+                for attr in current_names:
+                    if not hasattr(value, attr):
+                        continue
+                    node_id = self._linked_node_id(getattr(value, attr))
+                    if node_id in node_ids:
+                        return node_id
         return None
 
     def _extract_tree_label(self, value: Any) -> str:

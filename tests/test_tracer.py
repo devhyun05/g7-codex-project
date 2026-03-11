@@ -215,10 +215,14 @@ class ExecutionTracerTest(unittest.TestCase):
         structure = result["steps"][-1]["structure"]
         self.assertEqual(structure["kind"], "linked-list")
         self.assertEqual(structure["name"], "head")
+        self.assertEqual(structure["list_type"], "singly")
         self.assertEqual(len(structure["nodes"]), 3)
         self.assertEqual(structure["nodes"][0]["label"], "1")
         self.assertEqual(structure["nodes"][1]["label"], "2")
         self.assertEqual(structure["nodes"][2]["label"], "3")
+        self.assertIsNone(structure["nodes"][0]["prev_id"])
+        self.assertIsNone(structure["nodes"][1]["prev_id"])
+        self.assertIsNone(structure["nodes"][2]["prev_id"])
         self.assertEqual(structure["current_id"], structure["nodes"][1]["id"])
         self.assertTrue(
             any(item["kind"] == "linked-list" for item in result["analysis"]["structures"])
@@ -242,11 +246,91 @@ class ExecutionTracerTest(unittest.TestCase):
 
         structure = result["steps"][-1]["structure"]
         self.assertEqual(structure["kind"], "linked-list")
+        self.assertEqual(structure["list_type"], "singly")
         self.assertEqual(len(structure["nodes"]), 4)
         self.assertEqual(structure["nodes"][0]["label"], "1")
         self.assertEqual(structure["nodes"][3]["label"], "4")
         self.assertEqual(structure["current_id"], structure["nodes"][2]["id"])
         self.assertEqual(structure["name"], "start")
+
+    def test_detects_linked_list_inside_wrapper_class(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "class Node:",
+                    "    def __init__(self, value):",
+                    "        self.value = value",
+                    "        self.next = None",
+                    "",
+                    "class LinkedList:",
+                    "    def __init__(self):",
+                    "        self.head = None",
+                    "        self.current = None",
+                    "",
+                    "    def append(self, value):",
+                    "        new_node = Node(value)",
+                    "        if self.head is None:",
+                    "            self.head = new_node",
+                    "            return",
+                    "        cur = self.head",
+                    "        while cur.next:",
+                    "            cur = cur.next",
+                    "        cur.next = new_node",
+                    "",
+                    "linked = LinkedList()",
+                    "linked.append(10)",
+                    "linked.append(20)",
+                    "linked.append(30)",
+                    "linked.current = linked.head.next",
+                    "print(linked.current.value)",
+                ]
+            )
+        )
+
+        structure = result["steps"][-1]["structure"]
+        self.assertEqual(structure["kind"], "linked-list")
+        self.assertEqual(structure["name"], "linked")
+        self.assertEqual(structure["list_type"], "singly")
+        self.assertEqual(len(structure["nodes"]), 3)
+        self.assertEqual(structure["nodes"][0]["label"], "10")
+        self.assertEqual(structure["nodes"][1]["label"], "20")
+        self.assertEqual(structure["nodes"][2]["label"], "30")
+        self.assertEqual(structure["current_id"], structure["nodes"][1]["id"])
+
+    def test_detects_doubly_linked_list_and_prev_pointers(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "class Node:",
+                    "    def __init__(self, value):",
+                    "        self.value = value",
+                    "        self.next = None",
+                    "        self.prev = None",
+                    "",
+                    "a = Node(1)",
+                    "b = Node(2)",
+                    "c = Node(3)",
+                    "a.next = b",
+                    "b.prev = a",
+                    "b.next = c",
+                    "c.prev = b",
+                    "cursor = c",
+                    "print(cursor.value)",
+                ]
+            )
+        )
+
+        structure = result["steps"][-1]["structure"]
+        self.assertEqual(structure["kind"], "linked-list")
+        self.assertEqual(structure["list_type"], "doubly")
+        self.assertEqual(len(structure["nodes"]), 3)
+        self.assertEqual(structure["nodes"][0]["label"], "1")
+        self.assertEqual(structure["nodes"][1]["label"], "2")
+        self.assertEqual(structure["nodes"][2]["label"], "3")
+        self.assertIsNone(structure["nodes"][0]["prev_id"])
+        self.assertEqual(structure["nodes"][1]["prev_id"], structure["nodes"][0]["id"])
+        self.assertEqual(structure["nodes"][2]["prev_id"], structure["nodes"][1]["id"])
+        self.assertEqual(structure["current_id"], structure["nodes"][2]["id"])
 
     def test_keeps_frame_locals_after_recursive_return(self):
         result = self.tracer.trace(

@@ -5,6 +5,8 @@ from collections import defaultdict
 from typing import Any
 
 LINKED_NEXT_KEYS = {"next", "next_node", "nextNode", "nxt"}
+LINKED_PREV_KEYS = {"prev", "previous", "prev_node", "prevNode", "prv"}
+LINKED_POINTER_KEYS = LINKED_NEXT_KEYS | LINKED_PREV_KEYS
 
 
 def analyze_code_structures(code: str) -> dict[str, Any]:
@@ -107,7 +109,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
 
         if {"left", "right"} & attrs or "children" in attrs:
             self.node_like_classes.add(node.name)
-        if LINKED_NEXT_KEYS & attrs:
+        if LINKED_POINTER_KEYS & attrs:
             self.linked_node_classes.add(node.name)
 
         self.generic_visit(node)
@@ -178,7 +180,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             self._set_hint(
                 name,
                 "linked-list",
-                "next 포인터를 가진 노드 체인으로 판단했습니다.",
+                "next/prev 포인터를 가진 노드 체인으로 판단했습니다.",
                 89,
             )
             return
@@ -280,7 +282,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
                 for key in value.keys
                 if isinstance(key, ast.Constant) and isinstance(key.value, str)
             }
-            return bool(LINKED_NEXT_KEYS & keys)
+            return bool(LINKED_POINTER_KEYS & keys)
 
         if not isinstance(value, ast.Call):
             return False
@@ -290,7 +292,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             return True
 
         keyword_names = {keyword.arg for keyword in value.keywords if keyword.arg}
-        return bool(LINKED_NEXT_KEYS & keyword_names)
+        return bool(LINKED_POINTER_KEYS & keyword_names)
 
     def _call_name(self, func: ast.AST) -> str:
         if isinstance(func, ast.Name):
