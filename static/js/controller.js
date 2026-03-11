@@ -61,6 +61,21 @@
     resetEditorState();
   }
 
+  function syncIdlePanels() {
+    const showOutputPanel = Boolean(state.runResult.error || state.runResult.stdout);
+    dom.outputPanel.classList.toggle("hidden", !showOutputPanel);
+    dom.explanationPanel.classList.add("hidden");
+    dom.workspaceLeft.classList.toggle("single-panel", !showOutputPanel);
+    dom.workspaceRight.classList.add("single-panel");
+  }
+
+  function syncTracePanels() {
+    dom.outputPanel.classList.remove("hidden");
+    dom.explanationPanel.classList.remove("hidden");
+    dom.workspaceLeft.classList.remove("single-panel");
+    dom.workspaceRight.classList.remove("single-panel");
+  }
+
   function resetEditorState(message) {
     stopPlayback();
     state.steps = [];
@@ -69,6 +84,7 @@
     codePanel.syncMode(dom, false);
     configureControls();
     updateHeader(null);
+    syncIdlePanels();
     visualPanel.renderIdle(dom);
     flowSidebar.renderIdle(dom, message);
     codePanel.renderIdleOutput(
@@ -147,6 +163,7 @@
   function renderTraceState() {
     codePanel.syncMode(dom, true);
     configureControls();
+    syncTracePanels();
 
     const step = getCurrentStep();
     const activeFrame = getActiveFrame(step);

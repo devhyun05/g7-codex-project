@@ -20,6 +20,7 @@
       traceWorkspace: document.getElementById("trace-workspace"),
       codeViewer: document.getElementById("code-viewer"),
       flowSidebar: document.getElementById("flow-sidebar"),
+      outputPanel: document.getElementById("output-panel"),
       outputPanelTitle: document.getElementById("output-panel-title"),
       outputPanelCaption: document.getElementById("output-panel-caption"),
       outputView: document.getElementById("output-view"),
@@ -29,7 +30,10 @@
       primaryStage: document.getElementById("primary-stage"),
       eventLabel: document.getElementById("event-label"),
       primaryViewLabel: document.getElementById("primary-view-label"),
+      explanationPanel: document.getElementById("explanation-panel"),
       explanationView: document.getElementById("explanation-view"),
+      workspaceLeft: document.getElementById("workspace-left"),
+      workspaceRight: document.getElementById("workspace-right"),
       workspaceGrid: document.querySelector(".workspace-grid"),
       workspaceSplitter: document.getElementById("workspace-splitter"),
     };
