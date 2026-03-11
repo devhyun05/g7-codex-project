@@ -4,6 +4,9 @@
 
   const utils = window.Visualizer.utils;
   let idleSearchQuery = "";
+  const linkedListViewportState = {
+    nodeIds: [],
+  };
   const structureGuides = [
     {
       label: "STACK",
@@ -29,9 +32,16 @@
       pattern: "인접 리스트 / 인접 딕셔너리",
       description: "연결과 방문 상태를 보여줍니다.",
     },
+    {
+      label: "LIST",
+      title: "연결 리스트",
+      pattern: "head / next / prev",
+      description: "노드 연결과 현재 위치를 화살표로 표시합니다.",
+    },
   ];
 
   function renderIdle(dom) {
+    resetLinkedListViewportState();
     idleSearchQuery = "";
     dom.stageTitle.textContent = "시각화 가능한 자료 구조";
     dom.stageCaption.textContent = "실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.";
@@ -44,10 +54,12 @@
 
   function render(dom, state, step, activeFrame) {
     const sortingState = extractSortingState(step, state);
-    const view = detectPrimaryView(step, state, sortingState);
+    const linkedListState = extractLinkedListState(step, state);
+    const view = detectPrimaryView(step, state, sortingState, linkedListState);
     dom.primaryViewLabel.textContent = utils.formatViewLabel(view);
 
     if (view === "sorting") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "정렬 시각화";
       dom.stageCaption.textContent = "정렬 대상 배열의 값 변화를 막대 그래프로 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
@@ -57,6 +69,7 @@
     }
 
     if (view === "graph") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "그래프 흐름";
       dom.stageCaption.textContent = "코드에서 감지한 인접 구조를 그래프로 해석해 현재 노드와 방문 상태를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
@@ -65,6 +78,7 @@
     }
 
     if (view === "data-tree") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "트리 구조";
       dom.stageCaption.textContent = "left / right 또는 children 관계를 기반으로 트리를 구성했습니다.";
       dom.primaryStage.className = "visual-stage";
@@ -72,7 +86,28 @@
       return view;
     }
 
+    if (view === "linked-list") {
+      dom.stageTitle.textContent = "연결 리스트";
+      dom.stageCaption.textContent = !linkedListState
+        ? "연결된 노드 체인을 찾는 중입니다. 호출 트리 대신 리스트 시각화를 유지합니다."
+        : linkedListState.list_type === "doubly"
+          ? "doubly linked list로 감지되어 next/prev 포인터 연결을 함께 표시합니다."
+          : "singly linked list로 감지되어 next 포인터 연결을 표시합니다.";
+      dom.primaryStage.className = "visual-stage";
+      const focus = linkedListState ? resolveLinkedListFocus(linkedListState) : null;
+      dom.primaryStage.innerHTML = linkedListState
+        ? buildLinkedListMarkup(linkedListState, focus ? focus.id : null)
+        : buildLinkedListWaitingMarkup();
+      if (linkedListState) {
+        scrollLinkedListLane(dom, linkedListState, focus);
+      } else {
+        resetLinkedListViewportState();
+      }
+      return view;
+    }
+
     if (view === "stack") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "스택 상태";
       dom.stageCaption.textContent = "append + pop 흐름을 스택으로 해석해 top을 강조했습니다.";
       dom.primaryStage.className = "visual-stage";
@@ -81,6 +116,7 @@
     }
 
     if (view === "queue") {
+      resetLinkedListViewportState();
       dom.stageTitle.textContent = "큐 상태";
       dom.stageCaption.textContent = "deque / pop(0) 패턴을 큐로 해석해 front와 back을 구분했습니다.";
       dom.primaryStage.className = "visual-stage";
@@ -89,6 +125,7 @@
     }
 
     if (view === "call-tree") {
+      resetLinkedListViewportState();
       const sortingIntent = Boolean(
         state &&
           state.runResult &&
@@ -111,15 +148,27 @@
       : "오류가 있어도 가능한 범위의 실행 흐름을 유지합니다.";
     dom.primaryStage.className = "visual-stage";
     dom.primaryStage.innerHTML = buildSummaryMarkup(step, activeFrame, state);
+    resetLinkedListViewportState();
     return view;
   }
 
-  function detectPrimaryView(step, state, sortingState) {
+  function detectPrimaryView(step, state, sortingState, linkedListState) {
+    const linkedListIntent = hasLinkedListIntent(step, state);
+    const sortingIntent = hasSortingIntent(state);
+
+    if (linkedListState) {
+      return "linked-list";
+    }
+
+    if (linkedListIntent && !sortingIntent) {
+      return "linked-list";
+    }
+
     if (shouldPreferSortingBars(step, state, sortingState)) {
       return "sorting";
     }
 
-    if (shouldPreferSortingCallTree(step, state)) {
+    if (shouldPreferSortingCallTree(step, state, linkedListState)) {
       return "call-tree";
     }
 
@@ -151,7 +200,10 @@
     return "summary";
   }
 
-  function shouldPreferSortingCallTree(step, state) {
+  function shouldPreferSortingCallTree(step, state, linkedListState) {
+    if (linkedListState || hasLinkedListIntent(step, state)) {
+      return false;
+    }
     if (!step || !step.call_tree || !Array.isArray(step.call_tree.children)) {
       return false;
     }
@@ -165,6 +217,9 @@
   }
 
   function shouldPreferSortingBars(step, state, sortingState) {
+    if (state && hasLinkedListIntent(step, state) && !hasSortingIntent(state)) {
+      return false;
+    }
     const intents = state && state.runResult && state.runResult.analysis
       ? state.runResult.analysis.intents
       : null;
@@ -180,6 +235,67 @@
       return false;
     }
     return Boolean(sortingState || stackLooksSorting || (intents && intents.sorting));
+  }
+
+  function extractLinkedListState(step, state) {
+    if (step && isConnectedLinkedList(step.structure)) {
+      return step.structure;
+    }
+    return findNearbyLinkedListState(state);
+  }
+
+  function findNearbyLinkedListState(state) {
+    if (!state || !Array.isArray(state.steps) || !state.steps.length) {
+      return null;
+    }
+
+    for (let index = state.currentIndex - 1; index >= 0; index -= 1) {
+      const previous = state.steps[index];
+      if (previous && isConnectedLinkedList(previous.structure)) {
+        return previous.structure;
+      }
+    }
+    return null;
+  }
+
+  function isConnectedLinkedList(structure) {
+    if (!structure || structure.kind !== "linked-list") {
+      return false;
+    }
+    const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+    if (nodes.length < 2) {
+      return false;
+    }
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    return nodes.some(
+      (node) =>
+        (node.next_id && nodeIds.has(node.next_id)) ||
+        (node.prev_id && nodeIds.has(node.prev_id)),
+    );
+  }
+
+  function hasLinkedListIntent(step, state) {
+    if (step && step.structure && step.structure.kind === "linked-list") {
+      return true;
+    }
+    const analysisStructures = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.structures
+      : [];
+    if (Array.isArray(analysisStructures) && analysisStructures.some((item) => item.kind === "linked-list")) {
+      return true;
+    }
+    return Boolean(
+      state &&
+        Array.isArray(state.steps) &&
+        state.steps.some((item) => item && item.structure && item.structure.kind === "linked-list"),
+    );
+  }
+
+  function hasSortingIntent(state) {
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    return Boolean(intents && intents.sorting);
   }
 
   function extractSortingState(step, state) {
@@ -901,6 +1017,145 @@
         </div>
       </div>
     `;
+  }
+
+  function buildLinkedListMarkup(structure, focusNodeId) {
+    const nodes = structure.nodes || [];
+    const effectiveCurrentId = focusNodeId || (nodes.length ? nodes[nodes.length - 1].id : null);
+    const listType = structure.list_type === "doubly" ? "doubly" : "singly";
+    const nodeNameMap = new Map(
+      nodes.map((node, index) => [node.id, `N${index + 1}`]),
+    );
+    const nodeName = (nodeId) => {
+      if (!nodeId) {
+        return "null";
+      }
+      return nodeNameMap.get(nodeId) || "node";
+    };
+    return `
+      <div class="stage-scroll">
+        <div class="structure-board">
+          <div class="linked-list-lane ${listType}">
+            ${nodes.length
+              ? nodes
+                  .map((node) => {
+                    const label = nodeName(node.id);
+                    const boxClasses = [
+                      "linked-node-box",
+                      node.id === structure.head_id ? "head" : "",
+                      node.id === effectiveCurrentId ? "current" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    const connector = node.next_id
+                      ? `
+                        <div class="linked-connector ${listType}">
+                          <div class="forward">
+                            <span class="line"></span>
+                            <span class="arrow">▶</span>
+                          </div>
+                          ${listType === "doubly"
+                            ? `
+                              <div class="backward">
+                                <span class="line"></span>
+                                <span class="arrow">◀</span>
+                              </div>
+                            `
+                            : ""}
+                        </div>
+                      `
+                      : '<div class="linked-null">NULL</div>';
+                    const headBadge = node.id === structure.head_id
+                      ? '<span class="linked-badge head">HEAD</span>'
+                      : "";
+                    const currentBadge = node.id === effectiveCurrentId
+                      ? '<span class="linked-badge current">CUR</span>'
+                      : "";
+                    return `
+                      <div class="linked-segment">
+                        <div class="${boxClasses}" data-node-id="${utils.escapeHtml(node.id)}">
+                          <div class="linked-node-meta">
+                            <span class="linked-node-name">${utils.escapeHtml(label)}</span>
+                            ${headBadge}
+                            ${currentBadge}
+                          </div>
+                          <strong class="linked-node-value">${utils.escapeHtml(node.label)}</strong>
+                        </div>
+                        ${connector}
+                      </div>
+                    `;
+                  })
+                  .join("")
+              : '<div class="linked-node-box">empty</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildLinkedListWaitingMarkup() {
+    return `
+      <div class="stage-scroll">
+        <div class="structure-board">
+          연결된 노드가 아직 없습니다. 링크가 생기면 노드 값과 포인터 연결을 바로 표시합니다.
+        </div>
+      </div>
+    `;
+  }
+
+  function resetLinkedListViewportState() {
+    linkedListViewportState.nodeIds = [];
+  }
+
+  function resolveLinkedListFocus(structure) {
+    const nodeIds = Array.isArray(structure.nodes) ? structure.nodes.map((node) => node.id) : [];
+    if (!nodeIds.length) {
+      return { id: null, isNewNode: false };
+    }
+    const previousIds = linkedListViewportState.nodeIds || [];
+    const previousSet = new Set(previousIds);
+    const addedIds = nodeIds.filter((id) => !previousSet.has(id));
+    if (addedIds.length) {
+      return { id: addedIds[addedIds.length - 1], isNewNode: true };
+    }
+    return { id: nodeIds[nodeIds.length - 1], isNewNode: false };
+  }
+
+  function scrollLinkedListLane(dom, structure, focus) {
+    const lane = dom.primaryStage.querySelector(".linked-list-lane");
+    if (!lane) {
+      return;
+    }
+    const nodeIds = Array.isArray(structure.nodes) ? structure.nodes.map((node) => node.id) : [];
+    if (!nodeIds.length) {
+      return;
+    }
+
+    const targetId = focus && focus.id ? focus.id : nodeIds[nodeIds.length - 1];
+    const isNewNode = Boolean(focus && focus.isNewNode);
+    linkedListViewportState.nodeIds = [...nodeIds];
+    if (!targetId) {
+      return;
+    }
+
+    const targetNode = lane.querySelector(`[data-node-id="${targetId}"]`);
+    if (!targetNode) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const laneRect = lane.getBoundingClientRect();
+      const targetRect = targetNode.getBoundingClientRect();
+      const isOutOfView = targetRect.right > laneRect.right - 12 || targetRect.left < laneRect.left + 12;
+      if (!isOutOfView && !isNewNode) {
+        return;
+      }
+      const destination = Math.max(0, targetNode.offsetLeft - Math.max(16, (lane.clientWidth - targetNode.clientWidth) / 2));
+      lane.scrollTo({
+        left: destination,
+        behavior: "smooth",
+      });
+    });
   }
 
   function buildDataTreeMarkup(structure) {
