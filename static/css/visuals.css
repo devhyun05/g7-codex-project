@@ -263,9 +263,9 @@
 }
 
 .linked-node-box.current {
-  border-color: #2e8b57;
-  background: rgba(46, 139, 87, 0.14);
-  box-shadow: 0 0 0 2px rgba(46, 139, 87, 0.22);
+  border-color: #228b4b;
+  background: rgba(34, 139, 75, 0.22);
+  box-shadow: 0 0 0 3px rgba(34, 139, 75, 0.3);
 }
 
 .linked-connector {
