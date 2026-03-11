@@ -10,15 +10,20 @@
     dom.editCodeButton.classList.toggle("hidden", !traceMode);
   }
 
-  function renderCodeView(dom, code, step) {
+  function renderCodeView(dom, code, step, previousStep) {
     const lines = code.split("\n");
     dom.codeViewer.className = "code-viewer";
     dom.codeViewer.innerHTML = lines
       .map((line, index) => {
         const lineNumber = index + 1;
         const active = step && step.line === lineNumber ? "active" : "";
+        const previous = previousStep
+          && previousStep.line === lineNumber
+          && (!step || step.line !== lineNumber)
+          ? "previous"
+          : "";
         return `
-          <div class="code-line ${active}">
+          <div class="code-line ${active} ${previous}">
             <span class="code-line-number">${lineNumber}</span>
             <span class="code-line-text">${utils.escapeHtml(line || " ")}</span>
           </div>

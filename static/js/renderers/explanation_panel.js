@@ -4,81 +4,80 @@
 
   const utils = window.Visualizer.utils;
 
-  function render(dom, state, step, primaryView) {
-    const analysis = state.runResult.analysis || { structures: [], summary: "" };
-    const structures = analysis.structures || [];
+  function render(dom, state, step) {
+    const explanationJson = step && step.explanation_json;
 
-    if (!step && !structures.length && !state.runResult.error) {
+    if (!explanationJson && !state.runResult.error) {
       dom.explanationView.className = "support-body empty-state";
       dom.explanationView.textContent = "실행을 시작하면 설명이 여기에 표시됩니다.";
       return;
     }
 
     dom.explanationView.className = "support-body explanation-board";
-    dom.explanationView.innerHTML = `
-      <div class="info-grid">
-        ${buildCurrentStepCard(step, state)}
-        ${buildLineCard(step)}
-        ${buildStructureCard(structures)}
-        ${buildViewCard(primaryView)}
+    dom.explanationView.innerHTML = explanationJson
+      ? buildExplanationMarkup(explanationJson, step)
+      : buildErrorMarkup(state.runResult.error || "설명을 만들지 못했습니다.");
+  }
+
+  function buildExplanationMarkup(explanationJson, step) {
+    const currentLine = step && step.line ? step.line : null;
+    const summary = explanationJson.summary || "코드 설명을 준비 중입니다.";
+    const lineExplanations = Array.isArray(explanationJson.line_explanations)
+      ? explanationJson.line_explanations
+      : [];
+    const improvements = Array.isArray(explanationJson.improvements)
+      ? explanationJson.improvements
+      : [];
+    const currentExplanation = lineExplanations.find((item) => item.line === currentLine) || null;
+
+    return `
+      <div class="info-grid explanation-json-board">
+        ${buildCard("요약", `<p>${utils.escapeHtml(summary)}</p>`)}
+        ${buildCurrentLineCard(currentExplanation, currentLine)}
+        ${buildImprovementCard(improvements)}
       </div>
     `;
   }
 
-  function buildCurrentStepCard(step, state) {
-    const text = step
-      ? step.explanation || step.message
-      : state.runResult.error || "아직 실행되지 않았습니다.";
-    return buildCard("현재 단계", `<p>${utils.escapeHtml(text)}</p>`);
-  }
-
-  function buildLineCard(step) {
-    const lineSource = step && step.line_source ? step.line_source : "";
-    if (!lineSource) {
-      return buildCard("현재 줄", "<p>현재 강조 중인 줄이 없습니다.</p>");
+  function buildCurrentLineCard(currentExplanation, currentLine) {
+    if (!currentExplanation) {
+      return buildCard("현재 줄 해석", "<p>현재 실행 중인 줄의 설명을 아직 만들지 못했습니다.</p>");
     }
 
     return buildCard(
-      "현재 줄",
-      `<div class="line-preview">${utils.escapeHtml(lineSource)}</div>`,
+      "현재 줄 해석",
+      `
+        <article class="line-explanation-item active">
+          <div class="line-explanation-head">
+            <span class="line-chip">line ${currentLine}</span>
+            <span class="line-chip accent">current</span>
+          </div>
+          <pre class="line-explanation-code">${utils.escapeHtml(currentExplanation.code || "")}</pre>
+          <p class="line-explanation-text">${utils.escapeHtml(currentExplanation.description || "")}</p>
+        </article>
+      `,
     );
   }
 
-  function buildStructureCard(structures) {
-    if (!structures.length) {
-      return buildCard("자동 판단", "<p>코드에서 특정 자료구조를 감지하지 못했습니다.</p>");
+  function buildImprovementCard(improvements) {
+    if (!improvements.length) {
+      return buildCard("개선 포인트", "<p>코드에서 바로 보이는 개선 포인트는 없습니다.</p>");
     }
 
     return buildCard(
-      "자동 판단",
+      "개선 포인트",
       `
-        <div class="tag-row">
-          ${structures
-            .map(
-              (item) => `
-                <span class="structure-chip">${utils.escapeHtml(utils.structureKindLabel(item.kind))} · ${utils.escapeHtml(item.name)}</span>
-              `,
-            )
-            .join("")}
-        </div>
-        <div class="info-grid">
-          ${structures
-            .map(
-              (item) => `
-                <p><strong>${utils.escapeHtml(item.name)}</strong> : ${utils.escapeHtml(item.reason)}</p>
-              `,
-            )
+        <div class="improvement-list">
+          ${improvements
+            .map((item) => `<p class="improvement-item">${utils.escapeHtml(item)}</p>`)
             .join("")}
         </div>
       `,
     );
   }
 
-  function buildViewCard(primaryView) {
-    return buildCard(
-      "현재 시각화",
-      `<p>${utils.escapeHtml(utils.describeView(primaryView))}</p>`,
-    );
+  function buildErrorMarkup(errorMessage) {
+    return buildCard("오류", `<p>${utils.escapeHtml(errorMessage)}</p>`);
   }
 
   function buildCard(title, bodyMarkup) {

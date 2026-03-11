@@ -116,9 +116,10 @@
     configureControls();
 
     const step = getCurrentStep();
+    const previousStep = getPreviousStep();
     const activeFrame = getActiveFrame(step);
     updateHeader(step);
-    codePanel.renderCodeView(dom, state.code, step);
+    codePanel.renderCodeView(dom, state.code, step, previousStep);
     flowSidebar.render(dom, step);
     state.primaryView = visualPanel.render(dom, state, step, activeFrame);
     codePanel.renderOutput(
@@ -208,6 +209,13 @@
       return null;
     }
     return state.steps[state.currentIndex];
+  }
+
+  function getPreviousStep() {
+    if (!state.steps.length || state.currentIndex <= 0) {
+      return null;
+    }
+    return state.steps[state.currentIndex - 1];
   }
 
   function getActiveFrame(step) {

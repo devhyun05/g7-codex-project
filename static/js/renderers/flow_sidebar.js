@@ -239,7 +239,7 @@
       }
     }
 
-    const active = frames.find((frame) => frame.active);
+    const active = [...frames].reverse().find((frame) => frame.active);
     return active ? active.id : frames[frames.length - 1].id;
   }
 

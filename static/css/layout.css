@@ -56,13 +56,19 @@
   gap: 12px;
   min-height: 0;
   overflow: hidden;
+  align-items: stretch;
 }
 
 .column-grid {
   display: grid;
-  grid-template-rows: minmax(0, 3.4fr) minmax(180px, 1fr);
+  grid-template-rows: minmax(0, 3.7fr) minmax(220px, 1.35fr);
   gap: 12px;
+  align-content: stretch;
   min-height: 0;
+}
+
+#workspace-right.column-grid {
+  grid-template-rows: minmax(0, 3.3fr) minmax(260px, 1.7fr);
 }
 
 .panel {
