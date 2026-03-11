@@ -43,14 +43,15 @@ class ExecutionTracer:
         }
         self._reset_state("")
 
-    def trace(self, code: str) -> dict[str, Any]:
-        self._reset_state(code)
+    def trace(self, code: str, stdin: str = "") -> dict[str, Any]:
+        self._reset_state(code, stdin)
         try:
             compiled = compile(code, USER_FILENAME, "exec")
         except SyntaxError as exc:
             return {
                 "ok": False,
                 "code": code,
+                "stdin": stdin,
                 "steps": [],
                 "stdout": "",
                 "error": self._format_syntax_error(exc),
@@ -80,14 +81,18 @@ class ExecutionTracer:
         return {
             "ok": self.error is None,
             "code": code,
+            "stdin": stdin,
             "steps": self.steps,
             "stdout": self.stdout,
             "error": self.error,
         }
 
-    def _reset_state(self, code: str) -> None:
+    def _reset_state(self, code: str, stdin: str = "") -> None:
         self.code = code
         self.code_lines = code.splitlines()
+        self.stdin = stdin
+        self.stdin_lines = stdin.splitlines()
+        self.stdin_index = 0
         self.steps: list[dict[str, Any]] = []
         self.stdout_buffer = io.StringIO()
         self.stdout = ""
@@ -166,12 +171,25 @@ class ExecutionTracer:
             "IndexError",
             "KeyError",
             "StopIteration",
+            "EOFError",
             "zip",
             "__build_class__",
         ]
         safe_builtins = {name: getattr(builtins, name) for name in allowed_builtin_names}
         safe_builtins["__import__"] = self._safe_import
+        safe_builtins["input"] = self._safe_input
         return safe_builtins
+
+    def _safe_input(self, prompt: str = "") -> str:
+        if prompt:
+            self.stdout_buffer.write(str(prompt))
+
+        if self.stdin_index >= len(self.stdin_lines):
+            raise EOFError("입력 데이터가 더 이상 없습니다.")
+
+        line = self.stdin_lines[self.stdin_index]
+        self.stdin_index += 1
+        return line
 
     def _safe_import(
         self,
@@ -305,6 +323,7 @@ class ExecutionTracer:
             "globals": self._serialize_namespace(self.globals_env),
             "call_tree": self._snapshot_tree(self.call_root, set(active_ids)),
             "graph": self._detect_graph_state(stack_frames),
+            "structure": self._detect_structure_state(stack_frames),
         }
 
     def _append_terminal_step(self) -> None:
@@ -321,6 +340,7 @@ class ExecutionTracer:
                 "globals": self._serialize_namespace(self.globals_env),
                 "call_tree": self._snapshot_tree(self.call_root, set()),
                 "graph": self._detect_graph_state([]),
+                "structure": self._detect_structure_state([]),
             }
         )
 
@@ -488,6 +508,184 @@ class ExecutionTracer:
             "tree_mode": graph["tree_mode"],
         }
 
+    def _detect_structure_state(self, stack_frames: list[FrameType]) -> dict[str, Any] | None:
+        scopes = [frame.f_locals for frame in reversed(stack_frames)]
+        scopes.append(self.globals_env)
+
+        candidates: list[tuple[int, str, dict[str, Any]]] = []
+        for scope in scopes:
+            for name, value in scope.items():
+                structure = self._coerce_structure(name, value, scopes)
+                if structure:
+                    candidates.append((structure.pop("_score"), name, structure))
+
+        if not candidates:
+            return None
+
+        _, _, structure = sorted(candidates, key=lambda item: (-item[0], item[1]))[0]
+        return structure
+
+    def _coerce_structure(
+        self,
+        name: str,
+        value: Any,
+        scopes: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        tree = self._coerce_tree(name, value, scopes)
+        if tree:
+            return tree
+
+        queue = self._coerce_queue(name, value)
+        if queue:
+            return queue
+
+        stack = self._coerce_stack(name, value)
+        if stack:
+            return stack
+
+        return None
+
+    def _coerce_stack(self, name: str, value: Any) -> dict[str, Any] | None:
+        lowered = name.lower()
+        if lowered not in {"stack", "stk"} and "stack" not in lowered:
+            return None
+
+        if not isinstance(value, (list, tuple)):
+            return None
+
+        items = list(value)
+        return {
+            "_score": 55 if lowered == "stack" else 45,
+            "kind": "stack",
+            "name": name,
+            "items": [self._short_repr(item) for item in items[:MAX_ITEMS]],
+            "truncated": len(items) > MAX_ITEMS,
+            "top_index": len(items) - 1 if items else None,
+        }
+
+    def _coerce_queue(self, name: str, value: Any) -> dict[str, Any] | None:
+        lowered = name.lower()
+        queue_names = {"queue", "deque", "dq"}
+        if lowered not in queue_names and "queue" not in lowered and "deque" not in lowered:
+            return None
+
+        if isinstance(value, collections.deque):
+            items = list(value)
+        elif isinstance(value, list):
+            items = list(value)
+        else:
+            return None
+
+        return {
+            "_score": 55 if lowered == "queue" else 45,
+            "kind": "queue",
+            "name": name,
+            "items": [self._short_repr(item) for item in items[:MAX_ITEMS]],
+            "truncated": len(items) > MAX_ITEMS,
+            "front_index": 0 if items else None,
+            "back_index": len(items) - 1 if items else None,
+        }
+
+    def _coerce_tree(
+        self,
+        name: str,
+        value: Any,
+        scopes: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        root = self._build_tree_payload(value, seen=set())
+        if not root:
+            return None
+
+        current_id = self._detect_current_tree_node(scopes, root["node_ids"])
+        return {
+            "_score": 70 if name.lower() in {"root", "tree"} else 52,
+            "kind": "tree",
+            "name": name,
+            "root": root["tree"],
+            "current_id": current_id,
+        }
+
+    def _build_tree_payload(
+        self,
+        value: Any,
+        seen: set[int],
+    ) -> dict[str, Any] | None:
+        node_value_id = id(value)
+        if node_value_id in seen:
+            return None
+
+        children = self._extract_tree_children(value)
+        if children is None:
+            return None
+
+        next_seen = seen | {node_value_id}
+        node_id = self._tree_node_id(value)
+        built_children = []
+        node_ids = {node_id}
+        for child in children[:MAX_ITEMS]:
+            if child is None:
+                continue
+            built_child = self._build_tree_payload(child, next_seen)
+            if built_child:
+                built_children.append(built_child["tree"])
+                node_ids |= built_child["node_ids"]
+
+        return {
+            "tree": {
+                "id": node_id,
+                "label": self._extract_tree_label(value),
+                "children": built_children,
+            },
+            "node_ids": node_ids,
+        }
+
+    def _extract_tree_children(self, value: Any) -> list[Any] | None:
+        if isinstance(value, dict):
+            keys = set(value.keys())
+            if {"left", "right"} & keys:
+                return [value.get("left"), value.get("right")]
+            if "children" in value and isinstance(value["children"], (list, tuple)):
+                return list(value["children"])
+            return None
+
+        attr_names = dir(value)
+        if "children" in attr_names:
+            children = getattr(value, "children", None)
+            if isinstance(children, (list, tuple)):
+                return list(children)
+
+        if "left" in attr_names or "right" in attr_names:
+            return [getattr(value, "left", None), getattr(value, "right", None)]
+
+        return None
+
+    def _extract_tree_label(self, value: Any) -> str:
+        if isinstance(value, dict):
+            for key in ("value", "val", "data", "key"):
+                if key in value:
+                    return self._short_repr(value[key])
+            return self._short_repr(value)
+
+        for attr_name in ("value", "val", "data", "key"):
+            if hasattr(value, attr_name):
+                return self._short_repr(getattr(value, attr_name))
+        return self._short_repr(value)
+
+    def _detect_current_tree_node(
+        self,
+        scopes: list[dict[str, Any]],
+        node_ids: set[str],
+    ) -> str | None:
+        current_names = ["node", "cur", "current", "root"]
+        for scope in scopes:
+            for name in current_names:
+                if name not in scope:
+                    continue
+                node_id = self._tree_node_id(scope[name])
+                if node_id in node_ids:
+                    return node_id
+        return None
+
     def _coerce_graph(self, value: Any) -> dict[str, Any] | None:
         if isinstance(value, dict):
             nodes: set[str] = set()
@@ -620,3 +818,6 @@ class ExecutionTracer:
         if value.isdigit():
             return (0, int(value))
         return (1, value)
+
+    def _tree_node_id(self, value: Any) -> str:
+        return f"node-{id(value)}"

@@ -60,6 +60,73 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("blocked", result["error"])
 
+    def test_supports_stdin_input(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "name = input()",
+                    'print("hello", name)',
+                ]
+            ),
+            stdin="codex",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["stdout"].strip(), "hello codex")
+
+    def test_detects_stack_and_queue_structures(self):
+        stack_result = self.tracer.trace(
+            "\n".join(
+                [
+                    "stack = []",
+                    "stack.append(1)",
+                    "stack.append(2)",
+                    "stack.pop()",
+                ]
+            )
+        )
+        queue_result = self.tracer.trace(
+            "\n".join(
+                [
+                    "from collections import deque",
+                    "queue = deque([1, 2])",
+                    "queue.append(3)",
+                    "queue.popleft()",
+                ]
+            )
+        )
+
+        self.assertEqual(stack_result["steps"][-1]["structure"]["kind"], "stack")
+        self.assertEqual(queue_result["steps"][-1]["structure"]["kind"], "queue")
+
+    def test_detects_binary_tree_structure(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "class Node:",
+                    "    def __init__(self, value, left=None, right=None):",
+                    "        self.value = value",
+                    "        self.left = left",
+                    "        self.right = right",
+                    "",
+                    'root = Node("A", Node("B"), Node("C"))',
+                    "",
+                    "def visit(node):",
+                    "    if node is None:",
+                    "        return",
+                    "    print(node.value)",
+                    "    visit(node.left)",
+                    "    visit(node.right)",
+                    "",
+                    "visit(root)",
+                ]
+            )
+        )
+
+        structure = result["steps"][-1]["structure"]
+        self.assertEqual(structure["kind"], "tree")
+        self.assertEqual(structure["root"]["label"], "'A'")
+
 
 if __name__ == "__main__":
     unittest.main()

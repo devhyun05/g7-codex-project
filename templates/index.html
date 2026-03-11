@@ -12,7 +12,7 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css') }}"
+      href="{{ url_for('static', filename='css/styles.css', v='20260311-3') }}"
     />
   </head>
   <body>
@@ -23,132 +23,169 @@
           <h1>Python Flow Visualizer</h1>
         </div>
         <div class="button-row">
-          <button id="load-example" class="ghost-button">DFS 예제</button>
+          <div class="transport-controls topbar-controls">
+            <button id="prev-step" class="step-button" type="button" disabled>이전</button>
+            <button id="play-step" class="step-button" type="button" disabled>재생</button>
+            <button id="next-step" class="step-button" type="button" disabled>다음</button>
+          </div>
+          <label class="example-picker">
+            <span>예제</span>
+            <select id="example-select" aria-label="Example selector"></select>
+          </label>
+          <button id="load-example" class="ghost-button">예제 불러오기</button>
           <button id="run-button" class="primary-button">실행 시작</button>
         </div>
       </header>
-
-      <div id="feedback-banner" class="feedback-banner hidden"></div>
-
-      <section class="control-strip">
-        <div class="transport-controls">
-          <button id="prev-step" class="step-button" disabled>이전</button>
-          <button id="play-step" class="step-button" disabled>재생</button>
-          <button id="next-step" class="step-button" disabled>다음</button>
-          <input
-            id="step-slider"
-            type="range"
-            min="0"
-            max="0"
-            value="0"
-            disabled
-          />
-        </div>
-
-        <div class="control-meta">
-          <div class="meta-block">
-            <span class="meta-label">이벤트</span>
-            <strong id="event-label">대기 중</strong>
-          </div>
-          <div class="meta-block meta-message">
-            <span class="meta-label">메시지</span>
-            <strong id="message-label">코드를 실행하면 핵심 흐름만 먼저 보여줍니다.</strong>
-          </div>
-        </div>
-      </section>
-
-      <main class="focus-grid">
-        <section class="panel code-panel">
-          <div class="panel-head compact">
-            <div>
-              <p class="panel-kicker">Code</p>
-              <h2>현재 실행 코드</h2>
-            </div>
-            <div class="code-head-actions">
-              <div class="meta-pills">
-                <span class="meta-pill">
-                  <span class="meta-key">step</span>
-                  <strong id="step-counter">0 / 0</strong>
-                </span>
-                <span class="meta-pill">
-                  <span class="meta-key">func</span>
-                  <strong id="function-pill">module</strong>
-                </span>
-                <span class="meta-pill">
-                  <span class="meta-key">line</span>
-                  <strong id="line-pill">-</strong>
-                </span>
+      <section class="workspace-wrap">
+        <main class="focus-grid">
+          <section class="panel code-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="panel-kicker">Code</p>
+                <h2>현재 실행 코드</h2>
               </div>
-              <button id="edit-code-button" class="ghost-button hidden">
-                코드 수정
-              </button>
+              <div class="code-head-actions">
+                <div class="meta-pills">
+                  <span class="meta-pill">
+                    <span class="meta-key">step</span>
+                    <strong id="step-counter">0 / 0</strong>
+                  </span>
+                  <span class="meta-pill">
+                    <span class="meta-key">func</span>
+                    <strong id="function-pill">module</strong>
+                  </span>
+                  <span class="meta-pill">
+                    <span class="meta-key">line</span>
+                    <strong id="line-pill">-</strong>
+                  </span>
+                </div>
+                <input
+                  id="step-slider"
+                  class="inline-slider"
+                  type="range"
+                  min="0"
+                  max="0"
+                  value="0"
+                  disabled
+                />
+                <button id="edit-code-button" class="ghost-button hidden" type="button">
+                  코드 수정
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div id="editor-wrap" class="editor-wrap">
-            <textarea
-              id="code-input"
-              spellcheck="false"
-              aria-label="Python code editor"
-            ></textarea>
-          </div>
+            <div id="editor-wrap" class="editor-wrap">
+              <div class="editor-grid">
+                <div class="editor-block">
+                  <label class="editor-label" for="code-input">Python 코드</label>
+                  <textarea
+                    id="code-input"
+                    spellcheck="false"
+                    aria-label="Python code editor"
+                  ></textarea>
+                </div>
+                <div class="editor-side">
+                  <div class="editor-block">
+                    <label class="editor-label" for="stdin-input">입력 데이터</label>
+                    <textarea
+                      id="stdin-input"
+                      class="stdin-input"
+                      spellcheck="false"
+                      aria-label="Python stdin input"
+                      placeholder="input()이 필요하면 줄 단위로 입력하세요."
+                    ></textarea>
+                    <p class="editor-hint">`input()` 호출 순서대로 위에서부터 한 줄씩 소비됩니다.</p>
+                  </div>
+                  <div class="editor-block editor-note">
+                    <strong>추천 예제</strong>
+                    <p>그래프 DFS, 스택 push/pop, 큐 enqueue/dequeue, 트리 순회, stdin 처리 예제를 바로 불러올 수 있습니다.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div id="code-viewer" class="code-viewer empty-state hidden">
-            아직 실행 기록이 없습니다.
-          </div>
-        </section>
+            <div id="code-viewer" class="code-viewer empty-state hidden">
+              아직 실행 기록이 없습니다.
+            </div>
+          </section>
 
-        <section class="panel stage-panel">
-          <div class="panel-head compact">
+          <section class="panel stage-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="panel-kicker">Visual</p>
+                <h2 id="stage-title">주 시각화</h2>
+              </div>
+              <div class="stage-head-meta">
+                <span id="event-label" class="view-chip">대기 중</span>
+                <span id="primary-view-label" class="view-chip">SUMMARY</span>
+              </div>
+            </div>
+            <p id="message-label" class="stage-subtitle">
+              코드를 실행하면 핵심 흐름만 먼저 보여줍니다.
+            </p>
+            <div id="primary-stage" class="visual-stage empty-state">
+              실행 결과가 여기에 표시됩니다.
+            </div>
+          </section>
+        </main>
+
+        <div id="detail-dock" class="detail-dock hidden">
+          <button
+            id="variables-toggle"
+            class="drawer-toggle"
+            type="button"
+            aria-label="변수 패널 열기"
+            aria-expanded="false"
+          >
+            <span class="drawer-arrow">◀</span>
+            <span class="drawer-toggle-text">변수</span>
+          </button>
+          <button
+            id="stdout-toggle"
+            class="drawer-toggle"
+            type="button"
+            aria-label="출력 패널 열기"
+            aria-expanded="false"
+          >
+            <span class="drawer-arrow">◀</span>
+            <span class="drawer-toggle-text">출력</span>
+          </button>
+        </div>
+
+        <aside id="detail-drawer" class="detail-drawer hidden" aria-hidden="true">
+          <div class="detail-drawer-head">
             <div>
-              <p class="panel-kicker">Visual</p>
-              <h2 id="stage-title">주 시각화</h2>
+              <p class="panel-kicker">Details</p>
+              <h2 id="detail-drawer-title">보조 정보</h2>
             </div>
-            <span id="primary-view-label" class="view-chip">SUMMARY</span>
+            <button id="close-drawer" class="ghost-button">닫기</button>
           </div>
-          <p id="stage-subtitle" class="stage-subtitle">
-            그래프가 있으면 그래프를, 재귀가 있으면 호출 트리를 먼저 보여줍니다.
-          </p>
-          <div id="primary-stage" class="visual-stage empty-state">
-            실행 결과가 여기에 표시됩니다.
-          </div>
-        </section>
-      </main>
 
-      <section class="details-region">
-        <details id="variables-details" class="detail-panel">
-          <summary>
-            <span>변수 살펴보기</span>
-            <span class="detail-hint">호출 스택과 전역 변수</span>
-          </summary>
-          <div class="detail-body detail-grid">
-            <section class="detail-block">
+          <div id="variables-panel" class="drawer-panel hidden">
+            <div class="drawer-section">
               <h3>호출 스택</h3>
               <div id="stack-view" class="stack-view empty-state">
                 실행을 시작하면 프레임별 지역 변수가 표시됩니다.
               </div>
-            </section>
-            <section class="detail-block">
+            </div>
+            <div class="drawer-section">
               <h3>전역 변수</h3>
               <div id="globals-view" class="globals-view empty-state">
                 아직 값이 없습니다.
               </div>
-            </section>
+            </div>
           </div>
-        </details>
 
-        <details id="stdout-details" class="detail-panel">
-          <summary>
-            <span>출력 보기</span>
-            <span class="detail-hint">stdout / 오류 확인</span>
-          </summary>
-          <div class="detail-body">
-            <pre id="stdout-view" class="stdout-view">실행 출력이 여기에 표시됩니다.</pre>
+          <div id="stdout-panel" class="drawer-panel hidden">
+            <div class="drawer-section">
+              <h3>stdout / 오류 확인</h3>
+              <pre id="stdout-view" class="stdout-view">실행 출력이 여기에 표시됩니다.</pre>
+            </div>
           </div>
-        </details>
+        </aside>
       </section>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='20260311-3') }}"></script>
   </body>
 </html>
