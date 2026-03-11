@@ -36,8 +36,9 @@
     }
   }
 
-  function renderOutput(dom, stdout, error) {
+  function renderOutput(dom, stdout, error, displayError = error) {
     const hasError = Boolean(error);
+    const visibleError = displayError || error;
 
     dom.outputPanelTitle.textContent = hasError ? "에러 메시지" : "출력";
     dom.outputPanelCaption.textContent = hasError ? errorOutputCaption : defaultOutputCaption;
@@ -47,12 +48,12 @@
       ? "support-body output-body output-error-body"
       : "support-body output-body";
     dom.outputView.innerHTML = hasError
-      ? `<div class="output-error">${utils.escapeHtml(error)}</div>`
+      ? `<div class="output-error">${utils.escapeHtml(visibleError)}</div>`
       : `<pre class="stdout-pre">${utils.escapeHtml(stdout || "출력이 없습니다.")}</pre>`;
   }
 
-  function renderIdleOutput(dom, stdout = "", error = null) {
-    renderOutput(dom, stdout, error);
+  function renderIdleOutput(dom, stdout = "", error = null, displayError = error) {
+    renderOutput(dom, stdout, error, displayError);
   }
 
   window.Visualizer.renderers.codePanel = {

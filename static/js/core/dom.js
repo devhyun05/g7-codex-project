@@ -3,6 +3,7 @@
 
   function getRefs() {
     return {
+      homeButton: document.getElementById("home-button"),
       codeInput: document.getElementById("code-input"),
       stdinInput: document.getElementById("stdin-input"),
       runButton: document.getElementById("run-button"),
