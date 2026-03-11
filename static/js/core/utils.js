@@ -20,6 +20,7 @@
       const labels = {
         sorting: "정렬 알고리즘의 배열 변화를 막대 그래프로 시각화하고 있습니다.",
         graph: "인접 구조를 그래프 흐름으로 시각화하고 있습니다.",
+        "linked-list": "head에서 next로 이어지는 연결 리스트를 노드 체인으로 시각화하고 있습니다.",
         "data-tree": "노드 구조를 트리로 판단해 현재 노드를 강조하고 있습니다.",
         stack: "push / pop 흐름을 보기 좋게 스택 형태로 시각화하고 있습니다.",
         queue: "front / back 이동이 보이도록 큐 형태로 시각화하고 있습니다.",
@@ -57,6 +58,7 @@
       const labels = {
         sorting: "SORT",
         graph: "GRAPH",
+        "linked-list": "LIST",
         "data-tree": "TREE",
         stack: "STACK",
         queue: "QUEUE",
@@ -78,6 +80,7 @@
     structureKindLabel(kind) {
       const labels = {
         graph: "그래프",
+        "linked-list": "연결리스트",
         tree: "트리",
         stack: "스택",
         queue: "큐",

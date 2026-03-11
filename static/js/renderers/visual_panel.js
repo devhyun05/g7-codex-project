@@ -44,6 +44,14 @@
       return view;
     }
 
+    if (view === "linked-list") {
+      dom.stageTitle.textContent = "연결 리스트";
+      dom.stageCaption.textContent = "head에서 next로 이어지는 노드 체인을 연결 리스트로 표현합니다.";
+      dom.primaryStage.className = "visual-stage";
+      dom.primaryStage.innerHTML = buildLinkedListMarkup(step.structure);
+      return view;
+    }
+
     if (view === "stack") {
       dom.stageTitle.textContent = "스택 상태";
       dom.stageCaption.textContent = "append + pop 흐름을 스택으로 해석해 top을 강조했습니다.";
@@ -99,6 +107,10 @@
       return "graph";
     }
 
+    if (step && step.structure && step.structure.kind === "linked-list") {
+      return "linked-list";
+    }
+
     if (step && step.structure && step.structure.kind === "tree") {
       return "data-tree";
     }
@@ -137,6 +149,9 @@
   }
 
   function shouldPreferSortingBars(step, state, sortingState) {
+    if (step && step.structure && step.structure.kind === "linked-list") {
+      return false;
+    }
     const intents = state && state.runResult && state.runResult.analysis
       ? state.runResult.analysis.intents
       : null;
@@ -766,6 +781,46 @@
                 : '<div class="queue-item">empty</div>'}
             </div>
             <div class="queue-end">BACK</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildLinkedListMarkup(structure) {
+    const nodes = structure.nodes || [];
+    return `
+      <div class="stage-scroll">
+        <div class="visual-caption">
+          <span><span class="legend-dot current"></span>현재 포인터</span>
+        </div>
+        <div class="structure-board">
+          <div class="linked-list-lane">
+            ${nodes.length
+              ? nodes
+                  .map((node, index) => {
+                    const classes = [
+                      "linked-node",
+                      node.id === structure.head_id ? "head" : "",
+                      node.id === structure.current_id ? "current" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    const arrow = index < nodes.length - 1 ? '<span class="linked-arrow">next →</span>' : "";
+                    return `
+                      <div class="linked-segment">
+                        <div class="${classes}">
+                          <span class="linked-tag">${node.id === structure.head_id ? "HEAD" : `#${index}`}</span>
+                          <strong>${utils.escapeHtml(node.label)}</strong>
+                        </div>
+                        ${arrow}
+                      </div>
+                    `;
+                  })
+                  .join("")
+              : '<div class="linked-node">empty</div>'}
+            ${structure.cycle ? '<span class="linked-extra">cycle detected</span>' : ""}
+            ${structure.truncated ? '<span class="linked-extra">truncated...</span>' : ""}
           </div>
         </div>
       </div>

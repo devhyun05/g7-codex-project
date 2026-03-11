@@ -5,6 +5,7 @@ from types import FrameType
 from typing import Any
 
 MAX_ITEMS = 8
+LINKED_MAX_ITEMS = 128
 
 
 class StructureDetector:
@@ -82,6 +83,10 @@ class StructureDetector:
         if tree:
             return tree
 
+        linked_list = self._coerce_linked_list(name, value, scopes)
+        if linked_list:
+            return linked_list
+
         queue = self._coerce_queue(name, value)
         if queue:
             return queue
@@ -91,6 +96,35 @@ class StructureDetector:
             return stack
 
         return None
+
+    def _coerce_linked_list(
+        self,
+        name: str,
+        value: Any,
+        scopes: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        payload = self._build_linked_list_payload(value)
+        if not payload:
+            return None
+
+        current_id = self._detect_current_linked_node(scopes, payload["node_ids"])
+        lowered = name.lower()
+        score = 55
+        if self.intent_map.get(name) == "linked-list":
+            score = 95
+        elif lowered in {"head", "list_head", "linked_list", "ll"}:
+            score = 82
+
+        return {
+            "_score": score,
+            "kind": "linked-list",
+            "name": name,
+            "head_id": payload["head_id"],
+            "current_id": current_id,
+            "nodes": payload["nodes"],
+            "truncated": payload["truncated"],
+            "cycle": payload["cycle"],
+        }
 
     def _coerce_stack(self, name: str, value: Any) -> dict[str, Any] | None:
         if self.intent_map.get(name) != "stack" and not self._stack_like_name(name):
@@ -205,6 +239,101 @@ class StructureDetector:
         if "left" in attrs or "right" in attrs:
             return [getattr(value, "left", None), getattr(value, "right", None)]
 
+        return None
+
+    def _build_linked_list_payload(self, value: Any) -> dict[str, Any] | None:
+        if not self._is_linked_node(value):
+            return None
+
+        nodes: list[dict[str, Any]] = []
+        node_ids: set[str] = set()
+        seen: set[str] = set()
+        cursor = value
+        truncated = False
+        cycle = False
+
+        while self._is_linked_node(cursor):
+            node_id = self._linked_node_id(cursor)
+            if node_id in seen:
+                cycle = True
+                break
+
+            seen.add(node_id)
+            node_ids.add(node_id)
+
+            next_node = self._extract_linked_next(cursor)
+            next_id = self._linked_node_id(next_node) if self._is_linked_node(next_node) else None
+
+            nodes.append(
+                {
+                    "id": node_id,
+                    "label": self._extract_linked_label(cursor),
+                    "next_id": next_id,
+                }
+            )
+
+            if len(nodes) >= LINKED_MAX_ITEMS:
+                if self._is_linked_node(next_node):
+                    truncated = True
+                break
+
+            if not self._is_linked_node(next_node):
+                break
+            cursor = next_node
+
+        if not nodes:
+            return None
+
+        return {
+            "head_id": nodes[0]["id"],
+            "node_ids": node_ids,
+            "nodes": nodes,
+            "truncated": truncated,
+            "cycle": cycle,
+        }
+
+    def _is_linked_node(self, value: Any) -> bool:
+        if value is None:
+            return False
+
+        if isinstance(value, dict):
+            return "next" in value
+
+        try:
+            return hasattr(value, "next")
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _extract_linked_next(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return value.get("next")
+        return getattr(value, "next", None)
+
+    def _extract_linked_label(self, value: Any) -> str:
+        if isinstance(value, dict):
+            for key in ("value", "val", "data", "key"):
+                if key in value:
+                    return self.short_repr(value[key])
+            return self.short_repr(value)
+
+        for attr in ("value", "val", "data", "key"):
+            if hasattr(value, attr):
+                return self.short_repr(getattr(value, attr))
+        return self.short_repr(value)
+
+    def _detect_current_linked_node(
+        self,
+        scopes: list[dict[str, Any]],
+        node_ids: set[str],
+    ) -> str | None:
+        current_names = ["cur", "current", "node", "head", "tail"]
+        for scope in scopes:
+            for name in current_names:
+                if name not in scope:
+                    continue
+                node_id = self._linked_node_id(scope[name])
+                if node_id in node_ids:
+                    return node_id
         return None
 
     def _extract_tree_label(self, value: Any) -> str:
@@ -349,3 +478,6 @@ class StructureDetector:
 
     def _tree_node_id(self, value: Any) -> str:
         return f"node-{id(value)}"
+
+    def _linked_node_id(self, value: Any) -> str:
+        return f"ll-{id(value)}"
