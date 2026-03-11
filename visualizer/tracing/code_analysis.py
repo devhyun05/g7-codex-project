@@ -9,7 +9,12 @@ def analyze_code_structures(code: str) -> dict[str, Any]:
     try:
         tree = ast.parse(code)
     except SyntaxError:
-        return {"structures": [], "intent_map": {}, "summary": ""}
+        return {
+            "structures": [],
+            "intent_map": {},
+            "intents": {"sorting": False, "sorting_order": None},
+            "summary": "",
+        }
 
     analyzer = CodeStructureAnalyzer()
     analyzer.visit(tree)
@@ -23,6 +28,8 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         self.node_like_classes: set[str] = set()
         self.method_ops: dict[str, set[str]] = defaultdict(set)
         self.hints: dict[str, dict[str, Any]] = {}
+        self.sorting_detected = False
+        self.sorting_order: str | None = None
 
     def build_result(self) -> dict[str, Any]:
         for name, ops in self.method_ops.items():
@@ -55,6 +62,10 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         return {
             "structures": structures,
             "intent_map": {name: hint["kind"] for name, hint in self.hints.items()},
+            "intents": {
+                "sorting": self.sorting_detected,
+                "sorting_order": self.sorting_order,
+            },
             "summary": summary,
         }
 
@@ -89,6 +100,11 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if "sort" in node.name.lower():
+            self.sorting_detected = True
+        self.generic_visit(node)
+
     def visit_Assign(self, node: ast.Assign) -> None:
         for name in self._target_names(node.targets):
             self._inspect_assignment(name, node.value)
@@ -100,6 +116,9 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
+        call_name = self._call_name(node.func)
+        if call_name.endswith(".sort") or call_name == "sorted":
+            self.sorting_detected = True
         if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
             name = node.func.value.id
             attr = node.func.attr
@@ -110,6 +129,14 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
                     self.method_ops[name].add("pop-left")
                 else:
                     self.method_ops[name].add("pop")
+        self.generic_visit(node)
+
+    def visit_Compare(self, node: ast.Compare) -> None:
+        if self._looks_like_sort_compare(node):
+            self.sorting_detected = True
+            inferred_order = self._infer_sort_order(node)
+            if inferred_order and self.sorting_order is None:
+                self.sorting_order = inferred_order
         self.generic_visit(node)
 
     def _inspect_assignment(self, name: str, value: ast.AST | None) -> None:
@@ -242,4 +269,21 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             and target.value.id == "self"
         ):
             return target.attr
+        return None
+
+    def _looks_like_sort_compare(self, node: ast.Compare) -> bool:
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            return False
+
+        left = node.left
+        right = node.comparators[0]
+        candidates = (ast.Subscript, ast.Name)
+        return isinstance(left, candidates) and isinstance(right, candidates)
+
+    def _infer_sort_order(self, node: ast.Compare) -> str | None:
+        op = node.ops[0]
+        if isinstance(op, (ast.Gt, ast.GtE, ast.LtE)):
+            return "asc"
+        if isinstance(op, ast.Lt):
+            return "desc"
         return None

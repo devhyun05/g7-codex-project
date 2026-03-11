@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import builtins
 import bisect
 import collections
@@ -53,16 +54,18 @@ class ExecutionTracer:
         self._reset_state("")
 
     def trace(self, code: str, stdin: str = "") -> dict[str, Any]:
-        self._reset_state(code, stdin)
-        self.code_analysis = analyze_code_structures(code)
+        normalized_code = self._normalize_source(code)
+        self._reset_state(normalized_code, stdin)
+        self.code_analysis = analyze_code_structures(normalized_code)
         self.detector = StructureDetector(self._short_repr, self.code_analysis)
+        self.static_line_descriptions = self._build_static_line_descriptions(normalized_code)
 
         try:
-            compiled = compile(code, USER_FILENAME, "exec")
+            compiled = compile(normalized_code, USER_FILENAME, "exec")
         except SyntaxError as exc:
             return {
                 "ok": False,
-                "code": code,
+                "code": normalized_code,
                 "stdin": stdin,
                 "steps": [],
                 "stdout": "",
@@ -93,7 +96,7 @@ class ExecutionTracer:
 
         return {
             "ok": self.error is None,
-            "code": code,
+            "code": normalized_code,
             "stdin": stdin,
             "steps": self.steps,
             "stdout": self.stdout,
@@ -126,6 +129,16 @@ class ExecutionTracer:
         self.node_by_id = {"root": self.call_root}
         self.frame_to_node: dict[int, str] = {}
         self.call_index = 0
+        self.static_line_descriptions: dict[int, str] = {}
+
+    def _normalize_source(self, code: str) -> str:
+        translation = str.maketrans({
+            "\u2018": "'",
+            "\u2019": "'",
+            "\u201c": '"',
+            "\u201d": '"',
+        })
+        return code.translate(translation)
 
     def _build_safe_builtins(self) -> dict[str, Any]:
         allowed_builtin_names = [
@@ -360,12 +373,15 @@ class ExecutionTracer:
         line_number = frame.f_lineno if frame else None
         graph_state = self.detector.detect_graph_state(stack_frames, self.globals_env)
         structure_state = self.detector.detect_structure_state(stack_frames, self.globals_env)
+        line_source = self._line_source(line_number)
+        line_detail = self._build_line_detail(frame, line_source, event)
 
         snapshot = {
             "index": len(self.steps) + 1,
             "event": event,
             "line": line_number,
-            "line_source": self._line_source(line_number),
+            "line_source": line_source,
+            "line_detail": line_detail,
             "message": self._build_message(frame, event, arg),
             "stdout": self.stdout_buffer.getvalue(),
             "stack": [self._serialize_frame(stack_frame) for stack_frame in stack_frames],
@@ -374,7 +390,8 @@ class ExecutionTracer:
             "graph": graph_state,
             "structure": structure_state,
         }
-        snapshot["explanation"] = self._build_step_explanation(snapshot)
+        snapshot["explanation"] = self._build_step_explanation(snapshot, frame)
+        snapshot["explanation_json"] = self._build_explanation_json(snapshot)
         return snapshot
 
     def _append_terminal_step(self) -> None:
@@ -385,6 +402,7 @@ class ExecutionTracer:
             "event": "error" if self.error else "end",
             "line": None,
             "line_source": "",
+            "line_detail": "",
             "message": self.error or "프로그램 실행이 끝났습니다.",
             "stdout": self.stdout,
             "stack": [],
@@ -393,7 +411,8 @@ class ExecutionTracer:
             "graph": graph_state,
             "structure": structure_state,
         }
-        snapshot["explanation"] = self._build_step_explanation(snapshot)
+        snapshot["explanation"] = self._build_step_explanation(snapshot, None)
+        snapshot["explanation_json"] = self._build_explanation_json(snapshot)
         self.steps.append(snapshot)
 
     def _collect_user_stack(self, frame: FrameType) -> list[FrameType]:
@@ -527,14 +546,90 @@ class ExecutionTracer:
             ],
         }
 
-    def _build_step_explanation(self, snapshot: dict[str, Any]) -> str:
+    def _build_explanation_json(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        current_line = snapshot.get("line")
+        current_line_detail = snapshot.get("line_detail") or ""
+        line_explanations: list[dict[str, Any]] = []
+
+        for line_number, code in enumerate(self.code_lines, start=1):
+            if not code.strip():
+                continue
+
+            description = self.static_line_descriptions.get(
+                line_number,
+                "이 줄은 위아래 줄과 함께 하나의 동작을 완성하는 코드입니다.",
+            )
+            if current_line == line_number and current_line_detail:
+                description = current_line_detail
+
+            line_explanations.append(
+                {
+                    "line": line_number,
+                    "code": code,
+                    "description": description,
+                }
+            )
+
+        return {
+            "summary": self._build_explanation_summary(snapshot),
+            "line_explanations": line_explanations,
+            "improvements": self._build_improvements(),
+        }
+
+    def _build_explanation_summary(self, snapshot: dict[str, Any]) -> str:
+        if snapshot.get("event") == "error":
+            return snapshot.get("message") or "실행 중 오류가 발생했습니다."
+
+        structures = self.code_analysis.get("summary") or ""
+        if structures:
+            return f"이 코드는 {structures} 흐름을 포함하며, 현재 step을 기준으로 각 줄의 역할을 설명합니다."
+        return "이 코드는 위에서 아래로 실행되며, 현재 step 기준으로 각 줄의 역할을 설명합니다."
+
+    def _build_improvements(self) -> list[str]:
+        improvements: list[str] = []
+        code_text = "\n".join(self.code_lines)
+
+        if "input(" in code_text and not self.stdin:
+            improvements.append("input()을 사용하는 코드라면 입력 데이터가 없을 때 EOFError가 발생할 수 있습니다.")
+
+        if self._has_nested_loop():
+            improvements.append("중첩 반복문이 보여서 입력 크기가 커지면 실행 시간이 길어질 수 있습니다.")
+
+        if "global " in code_text:
+            improvements.append("global 변수에 의존하면 함수 재사용과 테스트가 어려워질 수 있습니다.")
+
+        return improvements
+
+    def _has_nested_loop(self) -> bool:
+        try:
+            tree = ast.parse(self.code)
+        except SyntaxError:
+            return False
+
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.For, ast.While)):
+                continue
+            if any(isinstance(child, (ast.For, ast.While)) for child in ast.iter_child_nodes(node)):
+                return True
+        return False
+
+    def _build_step_explanation(
+        self,
+        snapshot: dict[str, Any],
+        frame: FrameType | None,
+    ) -> str:
         pieces = [snapshot["message"]]
         line_source = (snapshot.get("line_source") or "").strip()
+        line_detail = snapshot.get("line_detail") or ""
         if line_source:
             pieces.append(f"현재 코드는 `{line_source}` 입니다.")
+            if line_detail:
+                pieces.append(line_detail)
 
         visual_target = self._describe_visual_target(snapshot)
-        if visual_target:
+        if visual_target and not (
+            line_detail and visual_target == self._generic_summary_text()
+        ):
             pieces.append(visual_target)
 
         analysis_summary = self.code_analysis.get("summary") or ""
@@ -542,6 +637,306 @@ class ExecutionTracer:
             pieces.append(f"코드에서 자동 판단한 자료구조는 {analysis_summary} 입니다.")
 
         return " ".join(pieces)
+
+    def _build_line_detail(
+        self,
+        frame: FrameType | None,
+        line_source: str,
+        event: str | None,
+    ) -> str:
+        if frame is None or event != "line":
+            return ""
+
+        stripped = line_source.strip()
+        if not stripped:
+            return ""
+
+        node = self._parse_line_node(stripped)
+        if node is None:
+            return ""
+
+        if isinstance(node, ast.If):
+            return self._describe_if_detail(node, frame)
+        if isinstance(node, ast.While):
+            return self._describe_while_detail(node, frame)
+        if isinstance(node, ast.For):
+            return self._describe_for_detail(node, frame)
+        if isinstance(node, ast.Assign):
+            return self._describe_assign_detail(node, frame)
+        if isinstance(node, ast.AugAssign):
+            return self._describe_augassign_detail(node, frame)
+        if isinstance(node, ast.Return):
+            return self._describe_return_detail(node, frame)
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            return self._describe_call_detail(node.value, frame)
+        return ""
+
+    def _build_static_line_descriptions(self, code: str) -> dict[int, str]:
+        descriptions: dict[int, str] = {}
+
+        for line_number, line in enumerate(code.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("#"):
+                descriptions[line_number] = "주석으로, 아래 코드가 왜 필요한지 설명하거나 메모를 남깁니다."
+                continue
+
+            node = self._parse_line_node(stripped)
+            if node is None:
+                descriptions[line_number] = "이 줄은 위아래 줄과 함께 하나의 식이나 블록을 완성하는 코드입니다."
+                continue
+
+            descriptions[line_number] = self._describe_static_node(node)
+
+        return descriptions
+
+    def _describe_static_node(self, node: ast.stmt) -> str:
+        if isinstance(node, ast.FunctionDef):
+            return f"`{node.name}` 함수를 정의합니다. 나중에 필요할 때 같은 로직을 다시 호출하려고 묶어 둔 것입니다."
+        if isinstance(node, ast.ClassDef):
+            return f"`{node.name}` 클래스를 정의합니다. 관련된 데이터와 동작을 하나의 객체 형태로 관리하려는 구조입니다."
+        if isinstance(node, ast.If):
+            return f"`if` 조건문입니다. 조건이 참일 때만 아래 블록을 실행하려고 사용합니다."
+        if isinstance(node, ast.While):
+            return f"`while` 반복문입니다. 조건이 참인 동안 같은 작업을 계속 반복합니다."
+        if isinstance(node, ast.For):
+            target = ast.unparse(node.target)
+            iterable = ast.unparse(node.iter)
+            return f"`for` 반복문입니다. `{target}` 값을 바꿔 가며 `{iterable}` 를 처음부터 끝까지 순회합니다."
+        if isinstance(node, ast.Assign):
+            targets = ", ".join(ast.unparse(target) for target in node.targets)
+            return f"`{targets}` 변수에 계산 결과를 저장합니다. 이후 줄에서 다시 사용하려고 값을 보관하는 단계입니다."
+        if isinstance(node, ast.AugAssign):
+            target = ast.unparse(node.target)
+            return f"`{target}` 값을 바로 갱신합니다. 기존 값을 읽고 연산한 뒤 같은 변수에 다시 저장합니다."
+        if isinstance(node, ast.Return):
+            return "함수 실행을 여기서 끝내고 결과값을 호출한 쪽으로 돌려줍니다."
+        if isinstance(node, ast.Import):
+            return "다른 모듈의 기능을 현재 코드에서 쓰기 위해 가져옵니다."
+        if isinstance(node, ast.ImportFrom):
+            return "특정 모듈 안의 필요한 기능만 골라서 가져옵니다."
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            return f"`{ast.unparse(node.value.func)}` 함수를 호출합니다. 이 줄에서 실제 동작이 일어납니다."
+        return "이 줄은 현재 로직을 진행하기 위해 필요한 일반 실행 코드입니다."
+
+    def _describe_if_detail(self, node: ast.If, frame: FrameType) -> str:
+        return self._describe_condition_detail(node.test, frame, "if")
+
+    def _describe_while_detail(self, node: ast.While, frame: FrameType) -> str:
+        return self._describe_condition_detail(node.test, frame, "while")
+
+    def _describe_condition_detail(
+        self,
+        test: ast.AST,
+        frame: FrameType,
+        keyword: str,
+    ) -> str:
+        expression = ast.unparse(test)
+        value = self._safe_eval_node(test, frame)
+        if value is None:
+            return f"`{keyword}` 조건 `{expression}` 을 평가합니다."
+
+        detail = self._describe_test_operands(test, frame)
+        verdict = "참" if bool(value) else "거짓"
+        if detail:
+            return f"`{keyword}` 조건 `{expression}` 은 {detail} 이므로 {verdict} 입니다."
+        return f"`{keyword}` 조건 `{expression}` 의 결과는 {self._short_repr(value)} 이므로 {verdict} 입니다."
+
+    def _describe_for_detail(self, node: ast.For, frame: FrameType) -> str:
+        target = ast.unparse(node.target)
+        iterable_expr = ast.unparse(node.iter)
+        iterable_value = self._safe_eval_node(node.iter, frame)
+        current_value = frame.f_locals.get(target)
+        iterable_preview = self._preview_iterable(iterable_value)
+        current_text = (
+            f" 현재 `{target}` 값은 {self._short_repr(current_value)} 입니다."
+            if target in frame.f_locals
+            else ""
+        )
+        if iterable_preview:
+            return (
+                f"`for` 문에서 `{target}` 이 `{iterable_expr}` 를 순회합니다. "
+                f"반복 대상은 {iterable_preview} 입니다.{current_text}"
+            )
+        return f"`for` 문에서 `{target}` 이 `{iterable_expr}` 를 순회합니다.{current_text}"
+
+    def _describe_assign_detail(self, node: ast.Assign, frame: FrameType) -> str:
+        if not node.targets:
+            return ""
+        if (
+            len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Tuple)
+            and isinstance(node.value, ast.Tuple)
+            and len(node.targets[0].elts) == len(node.value.elts)
+        ):
+            targets = [ast.unparse(target) for target in node.targets[0].elts]
+            values = []
+            for value_node in node.value.elts:
+                resolved = self._safe_eval_node(value_node, frame)
+                values.append(
+                    self._short_repr(resolved)
+                    if resolved is not None
+                    else ast.unparse(value_node)
+                )
+            return (
+                "여러 값을 한 번에 다시 대입합니다. "
+                f"`{', '.join(targets)}` 에 `{', '.join(values)}` 순서로 넣습니다."
+            )
+        target = ast.unparse(node.targets[0])
+        value_expr = ast.unparse(node.value)
+        value = self._safe_eval_node(node.value, frame)
+        if value is None:
+            return f"`{target}` 에 `{value_expr}` 결과를 대입합니다."
+        return f"`{target}` 에 `{value_expr}` 의 값 {self._short_repr(value)} 를 대입합니다."
+
+    def _describe_augassign_detail(self, node: ast.AugAssign, frame: FrameType) -> str:
+        target_expr = ast.unparse(node.target)
+        value_expr = ast.unparse(node.value)
+        before = self._safe_eval_node(node.target, frame)
+        delta = self._safe_eval_node(node.value, frame)
+        op_text = self._operator_text(node.op)
+        if before is None or delta is None:
+            return f"`{target_expr} {op_text}= {value_expr}` 를 계산합니다."
+        return (
+            f"`{target_expr}` 의 현재 값 {self._short_repr(before)} 에 "
+            f"`{value_expr}` 의 값 {self._short_repr(delta)} 를 {op_text} 연산합니다."
+        )
+
+    def _describe_return_detail(self, node: ast.Return, frame: FrameType) -> str:
+        if node.value is None:
+            return "`return` 으로 현재 함수를 종료합니다."
+        value_expr = ast.unparse(node.value)
+        value = self._safe_eval_node(node.value, frame)
+        if value is None:
+            return f"`return {value_expr}` 를 실행합니다."
+        return f"`return {value_expr}` 는 {self._short_repr(value)} 를 반환합니다."
+
+    def _describe_call_detail(self, node: ast.Call, frame: FrameType) -> str:
+        func_expr = ast.unparse(node.func)
+        arg_bits: list[str] = []
+        for arg in node.args[:4]:
+            arg_expr = ast.unparse(arg)
+            arg_value = self._safe_eval_node(arg, frame)
+            if arg_value is None:
+                arg_bits.append(arg_expr)
+            else:
+                arg_bits.append(f"{arg_expr}={self._short_repr(arg_value)}")
+        if arg_bits:
+            return f"`{func_expr}` 호출에 전달되는 값은 {', '.join(arg_bits)} 입니다."
+        return f"`{func_expr}` 함수를 호출합니다."
+
+    def _describe_test_operands(self, test: ast.AST, frame: FrameType) -> str:
+        if isinstance(test, ast.Compare):
+            expressions = [test.left, *test.comparators]
+            values = [self._safe_eval_node(expr, frame) for expr in expressions]
+            if any(value is None for value in values):
+                return ""
+            op_texts = [self._compare_operator_text(op) for op in test.ops]
+            pieces = [self._short_repr(values[0])]
+            for op_text, value in zip(op_texts, values[1:]):
+                pieces.append(f"{op_text} {self._short_repr(value)}")
+            return "실제 비교는 `" + " ".join(pieces) + "`"
+
+        if isinstance(test, ast.BoolOp):
+            rendered: list[str] = []
+            for expr in test.values:
+                value = self._safe_eval_node(expr, frame)
+                if value is None:
+                    continue
+                rendered.append(f"{ast.unparse(expr)}={self._short_repr(value)}")
+            if rendered:
+                joiner = " and " if isinstance(test.op, ast.And) else " or "
+                return "세부 조건은 `" + joiner.join(rendered) + "`"
+
+        return ""
+
+    def _safe_eval_node(self, node: ast.AST, frame: FrameType) -> Any | None:
+        if self._contains_unsafe_call(node):
+            return None
+        try:
+            compiled = compile(ast.Expression(node), USER_FILENAME, "eval")
+            return eval(compiled, self.globals_env, frame.f_locals)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _parse_line_node(self, stripped: str) -> ast.stmt | None:
+        candidates = [stripped]
+        if stripped.endswith(":"):
+            candidates.insert(0, f"{stripped}\n    pass")
+
+        for source in candidates:
+            try:
+                tree = ast.parse(source)
+            except SyntaxError:
+                continue
+            if tree.body:
+                return tree.body[0]
+        return None
+
+    def _contains_unsafe_call(self, node: ast.AST) -> bool:
+        for child in ast.walk(node):
+            if not isinstance(child, ast.Call):
+                continue
+
+            call_name = self._ast_call_name(child.func)
+            if call_name in {"range", "len"}:
+                continue
+            return True
+        return False
+
+    def _ast_call_name(self, func: ast.AST) -> str:
+        if isinstance(func, ast.Name):
+            return func.id
+        if isinstance(func, ast.Attribute):
+            root = self._ast_call_name(func.value)
+            return f"{root}.{func.attr}" if root else func.attr
+        return ""
+
+    def _preview_iterable(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, range):
+            preview = list(value[:8])
+            suffix = " ..." if len(value) > 8 else ""
+            return f"`{preview}{suffix}`"
+        if isinstance(value, (list, tuple)):
+            preview = list(value[:8])
+            suffix = " ..." if len(value) > 8 else ""
+            return f"`{preview}{suffix}`"
+        return f"`{self._short_repr(value)}`"
+
+    def _compare_operator_text(self, operator_node: ast.cmpop) -> str:
+        mapping = {
+            ast.Eq: "==",
+            ast.NotEq: "!=",
+            ast.Lt: "<",
+            ast.LtE: "<=",
+            ast.Gt: ">",
+            ast.GtE: ">=",
+            ast.In: "in",
+            ast.NotIn: "not in",
+            ast.Is: "is",
+            ast.IsNot: "is not",
+        }
+        for operator_type, symbol in mapping.items():
+            if isinstance(operator_node, operator_type):
+                return symbol
+        return "?"
+
+    def _operator_text(self, operator_node: ast.operator) -> str:
+        mapping = {
+            ast.Add: "+",
+            ast.Sub: "-",
+            ast.Mult: "*",
+            ast.Div: "/",
+            ast.FloorDiv: "//",
+            ast.Mod: "%",
+        }
+        for operator_type, symbol in mapping.items():
+            if isinstance(operator_node, operator_type):
+                return symbol
+        return "?"
 
     def _describe_visual_target(self, snapshot: dict[str, Any]) -> str:
         if snapshot.get("graph"):
@@ -552,7 +947,7 @@ class ExecutionTracer:
         if not structure:
             if snapshot.get("call_tree", {}).get("children"):
                 return "재귀 호출이 있어 호출 트리를 기준으로 흐름을 보여줍니다."
-            return "특정 자료구조가 감지되지 않아 실행 상태 요약을 유지합니다."
+            return self._generic_summary_text()
 
         labels = {
             "stack": "스택으로 판단해 top 중심으로 보여줍니다.",
@@ -560,6 +955,9 @@ class ExecutionTracer:
             "tree": "트리로 판단해 현재 노드와 전체 구조를 함께 보여줍니다.",
         }
         return labels.get(structure.get("kind"), "")
+
+    def _generic_summary_text(self) -> str:
+        return "특정 자료구조가 감지되지 않아 실행 상태 요약을 유지합니다."
 
     def _format_call_label(self, frame: FrameType) -> str:
         if frame.f_code.co_name == "<module>":

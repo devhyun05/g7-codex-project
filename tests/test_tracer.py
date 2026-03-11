@@ -107,6 +107,19 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["stdout"].strip().splitlines(), ["2", "9"])
 
+    def test_normalizes_smart_quotes_in_source(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "text = “hello”",
+                    "print(text)",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["stdout"].strip(), "hello")
+
     def test_detects_stack_and_queue_structures(self):
         stack_result = self.tracer.trace(
             "\n".join(
@@ -227,6 +240,73 @@ class ExecutionTracerTest(unittest.TestCase):
         walk(latest_tree)
         self.assertTrue(returned_nodes)
         self.assertTrue(any("n" in node.get("locals", {}) for node in returned_nodes))
+
+    def test_detects_sorting_intent_and_order(self):
+        merge_sort_result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def merge_sort(arr):",
+                    "    if len(arr) <= 1:",
+                    "        return arr",
+                    "    mid = len(arr) // 2",
+                    "    left = merge_sort(arr[:mid])",
+                    "    right = merge_sort(arr[mid:])",
+                    "    merged = []",
+                    "    i = j = 0",
+                    "    while i < len(left) and j < len(right):",
+                    "        if left[i] <= right[j]:",
+                    "            merged.append(left[i])",
+                    "            i += 1",
+                    "        else:",
+                    "            merged.append(right[j])",
+                    "            j += 1",
+                    "    merged.extend(left[i:])",
+                    "    merged.extend(right[j:])",
+                    "    return merged",
+                    "",
+                    "nums = [5, 1, 4, 2, 8]",
+                    "print(merge_sort(nums))",
+                ]
+            )
+        )
+        desc_result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def reorder_desc(values):",
+                    "    n = len(values)",
+                    "    for i in range(n):",
+                    "        for j in range(0, n - i - 1):",
+                    "            if values[j] < values[j + 1]:",
+                    "                values[j], values[j + 1] = values[j + 1], values[j]",
+                    "    return values",
+                    "",
+                    "data = [1, 9, 3, 7]",
+                    "print(reorder_desc(data))",
+                ]
+            )
+        )
+
+        self.assertTrue(merge_sort_result["analysis"]["intents"]["sorting"])
+        self.assertTrue(desc_result["analysis"]["intents"]["sorting"])
+        self.assertEqual(desc_result["analysis"]["intents"]["sorting_order"], "desc")
+
+    def test_explains_condition_with_runtime_values(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "arr = [3, 2]",
+                    "j = 0",
+                    "if arr[j] > arr[j + 1]:",
+                    "    arr[j], arr[j + 1] = arr[j + 1], arr[j]",
+                    "print(arr)",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        target_step = next(step for step in result["steps"] if step["line"] == 3)
+        self.assertIn("실제 비교는", target_step["explanation"])
+        self.assertIn("3 > 2", target_step["explanation"])
 
 
 if __name__ == "__main__":
