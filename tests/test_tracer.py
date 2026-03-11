@@ -53,6 +53,7 @@ class ExecutionTracerTest(unittest.TestCase):
         walk(last_tree)
         self.assertTrue(any(label.startswith("dfs(") for label in labels))
         self.assertIsNotNone(result["steps"][-1]["graph"])
+        self.assertFalse(result["analysis"]["intents"]["sorting"])
 
     def test_blocks_disallowed_imports(self):
         result = self.tracer.trace("import os\n")
@@ -346,6 +347,33 @@ class ExecutionTracerTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["analysis"]["intents"]["sorting"])
         self.assertEqual(result["analysis"]["intents"]["sorting_order"], "asc")
+
+    def test_does_not_treat_membership_checks_as_sorting(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "graph = {1: [2, 3], 2: [4], 3: [], 4: []}",
+                    "visited = set()",
+                    "",
+                    "def dfs(node):",
+                    "    visited.add(node)",
+                    "    for nxt in graph[node]:",
+                    "        if nxt not in visited:",
+                    "            dfs(nxt)",
+                    "",
+                    "dfs(1)",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["analysis"]["intents"]["sorting"])
+        self.assertTrue(
+            any(
+                step.get("graph") and step["graph"].get("nodes")
+                for step in result["steps"]
+            )
+        )
 
     def test_explains_condition_with_runtime_values(self):
         result = self.tracer.trace(

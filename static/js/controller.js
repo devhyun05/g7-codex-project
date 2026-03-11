@@ -122,7 +122,7 @@
       state.code = payload.code || state.code;
       state.stdin = payload.stdin || state.stdin;
       state.steps = payload.steps || [];
-      state.currentIndex = 0;
+      state.currentIndex = findInitialStepIndex(state.steps);
       const rawError = payload.error || null;
       state.runResult = {
         ok: Boolean(payload.ok),
@@ -256,6 +256,32 @@
       return null;
     }
     return state.steps[state.currentIndex];
+  }
+
+  function findInitialStepIndex(steps) {
+    if (!Array.isArray(steps) || !steps.length) {
+      return 0;
+    }
+
+    const prioritizedIndex = steps.findIndex((step) => {
+      if (step && step.graph && Array.isArray(step.graph.nodes) && step.graph.nodes.length) {
+        return true;
+      }
+      if (step && step.structure) {
+        return true;
+      }
+      if (
+        step &&
+        step.call_tree &&
+        Array.isArray(step.call_tree.children) &&
+        step.call_tree.children.length
+      ) {
+        return true;
+      }
+      return Boolean(step && step.stdout);
+    });
+
+    return prioritizedIndex >= 0 ? prioritizedIndex : 0;
   }
 
   function getPreviousStep() {

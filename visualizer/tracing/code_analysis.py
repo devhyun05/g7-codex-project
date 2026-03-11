@@ -288,6 +288,8 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
     def _looks_like_sort_compare(self, node: ast.Compare) -> bool:
         if len(node.ops) != 1 or len(node.comparators) != 1:
             return False
+        if not isinstance(node.ops[0], (ast.Gt, ast.GtE, ast.Lt, ast.LtE)):
+            return False
         left = node.left
         right = node.comparators[0]
         candidates = (ast.Subscript, ast.Name)

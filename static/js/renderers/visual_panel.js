@@ -115,14 +115,6 @@
   }
 
   function detectPrimaryView(step, state, sortingState) {
-    if (shouldPreferSortingBars(step, state, sortingState)) {
-      return "sorting";
-    }
-
-    if (shouldPreferSortingCallTree(step, state)) {
-      return "call-tree";
-    }
-
     if (step && step.graph && Array.isArray(step.graph.nodes) && step.graph.nodes.length) {
       return "graph";
     }
@@ -137,6 +129,14 @@
 
     if (step && step.structure && step.structure.kind === "queue") {
       return "queue";
+    }
+
+    if (shouldPreferSortingBars(step, state, sortingState)) {
+      return "sorting";
+    }
+
+    if (shouldPreferSortingCallTree(step, state)) {
+      return "call-tree";
     }
 
     if (
