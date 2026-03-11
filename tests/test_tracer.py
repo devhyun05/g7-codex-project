@@ -98,6 +98,39 @@ class ExecutionTracerTest(unittest.TestCase):
 
         self.assertEqual(stack_result["steps"][-1]["structure"]["kind"], "stack")
         self.assertEqual(queue_result["steps"][-1]["structure"]["kind"], "queue")
+        self.assertTrue(
+            any(item["kind"] == "stack" for item in stack_result["analysis"]["structures"])
+        )
+        self.assertTrue(
+            any(item["kind"] == "queue" for item in queue_result["analysis"]["structures"])
+        )
+
+    def test_infers_structure_from_code_pattern_without_explicit_names(self):
+        stack_result = self.tracer.trace(
+            "\n".join(
+                [
+                    "history = []",
+                    "history.append(1)",
+                    "history.append(2)",
+                    "history.pop()",
+                ]
+            )
+        )
+        queue_result = self.tracer.trace(
+            "\n".join(
+                [
+                    "from collections import deque",
+                    "tasks = deque([1, 2])",
+                    "tasks.append(3)",
+                    "tasks.popleft()",
+                ]
+            )
+        )
+
+        self.assertEqual(stack_result["steps"][-1]["structure"]["name"], "history")
+        self.assertEqual(stack_result["steps"][-1]["structure"]["kind"], "stack")
+        self.assertEqual(queue_result["steps"][-1]["structure"]["name"], "tasks")
+        self.assertEqual(queue_result["steps"][-1]["structure"]["kind"], "queue")
 
     def test_detects_binary_tree_structure(self):
         result = self.tracer.trace(
@@ -126,6 +159,9 @@ class ExecutionTracerTest(unittest.TestCase):
         structure = result["steps"][-1]["structure"]
         self.assertEqual(structure["kind"], "tree")
         self.assertEqual(structure["root"]["label"], "'A'")
+        self.assertTrue(
+            any(item["kind"] == "tree" for item in result["analysis"]["structures"])
+        )
 
 
 if __name__ == "__main__":

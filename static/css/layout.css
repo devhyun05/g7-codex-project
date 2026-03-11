@@ -1,0 +1,83 @@
+.page-shell {
+  max-width: 1480px;
+  height: 100dvh;
+  margin: 0 auto;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  overflow: hidden;
+}
+
+.topbar,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.brand {
+  min-width: 0;
+}
+
+.brand h1 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+}
+
+.brand-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.toolbar,
+.transport-controls,
+.panel-actions,
+.meta-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.column-grid {
+  display: grid;
+  grid-template-rows: minmax(0, 3.4fr) minmax(180px, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.panel {
+  min-height: 0;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-main {
+  min-height: 0;
+}
+
+.panel-secondary {
+  min-height: 0;
+}

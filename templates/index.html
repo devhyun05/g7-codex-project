@@ -12,39 +12,35 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/styles.css', v='20260311-3') }}"
+      href="{{ url_for('static', filename='css/styles.css', v='20260311-4') }}"
     />
   </head>
   <body>
     <div class="page-shell">
       <header class="topbar">
         <div class="brand">
-          <p class="panel-kicker">Algorithm Flow</p>
           <h1>Python Flow Visualizer</h1>
+          <p class="brand-subtitle">`app.py`는 진입점만 두고, 기능은 분리된 파일에서 처리합니다.</p>
         </div>
-        <div class="button-row">
-          <div class="transport-controls topbar-controls">
+        <div class="toolbar">
+          <div class="transport-controls">
             <button id="prev-step" class="step-button" type="button" disabled>이전</button>
             <button id="play-step" class="step-button" type="button" disabled>재생</button>
             <button id="next-step" class="step-button" type="button" disabled>다음</button>
           </div>
-          <label class="example-picker">
-            <span>예제</span>
-            <select id="example-select" aria-label="Example selector"></select>
-          </label>
-          <button id="load-example" class="ghost-button">예제 불러오기</button>
-          <button id="run-button" class="primary-button">실행 시작</button>
+          <button id="run-button" class="primary-button" type="button">실행 시작</button>
         </div>
       </header>
-      <section class="workspace-wrap">
-        <main class="focus-grid">
-          <section class="panel code-panel">
-            <div class="panel-head compact">
+
+      <main class="workspace-grid">
+        <section class="column-grid">
+          <section class="panel panel-main">
+            <div class="panel-head">
               <div>
-                <p class="panel-kicker">Code</p>
                 <h2>현재 실행 코드</h2>
+                <p class="panel-caption">실행 중인 줄을 강조하고, 편집 모드에서는 입력 코드를 직접 작성합니다.</p>
               </div>
-              <div class="code-head-actions">
+              <div class="panel-actions">
                 <div class="meta-pills">
                   <span class="meta-pill">
                     <span class="meta-key">step</span>
@@ -76,116 +72,90 @@
 
             <div id="editor-wrap" class="editor-wrap">
               <div class="editor-grid">
-                <div class="editor-block">
-                  <label class="editor-label" for="code-input">Python 코드</label>
+                <label class="editor-field">
+                  <span class="editor-label">Python 코드</span>
                   <textarea
                     id="code-input"
                     spellcheck="false"
                     aria-label="Python code editor"
+                    placeholder="여기에 Python 코드를 입력하세요."
                   ></textarea>
-                </div>
-                <div class="editor-side">
-                  <div class="editor-block">
-                    <label class="editor-label" for="stdin-input">입력 데이터</label>
-                    <textarea
-                      id="stdin-input"
-                      class="stdin-input"
-                      spellcheck="false"
-                      aria-label="Python stdin input"
-                      placeholder="input()이 필요하면 줄 단위로 입력하세요."
-                    ></textarea>
-                    <p class="editor-hint">`input()` 호출 순서대로 위에서부터 한 줄씩 소비됩니다.</p>
-                  </div>
-                  <div class="editor-block editor-note">
-                    <strong>추천 예제</strong>
-                    <p>그래프 DFS, 스택 push/pop, 큐 enqueue/dequeue, 트리 순회, stdin 처리 예제를 바로 불러올 수 있습니다.</p>
-                  </div>
-                </div>
+                </label>
+                <label class="editor-field stdin-field">
+                  <span class="editor-label">입력 데이터</span>
+                  <textarea
+                    id="stdin-input"
+                    class="stdin-input"
+                    spellcheck="false"
+                    aria-label="Python stdin input"
+                    placeholder="input()이 필요하면 줄 단위로 입력하세요."
+                  ></textarea>
+                  <span class="editor-hint">`input()` 호출 순서대로 위에서부터 한 줄씩 소비됩니다.</span>
+                </label>
               </div>
             </div>
 
             <div id="code-viewer" class="code-viewer empty-state hidden">
-              아직 실행 기록이 없습니다.
+              실행 기록이 생성되면 코드 흐름이 여기에 표시됩니다.
             </div>
           </section>
 
-          <section class="panel stage-panel">
+          <section class="panel panel-secondary">
             <div class="panel-head compact">
               <div>
-                <p class="panel-kicker">Visual</p>
-                <h2 id="stage-title">주 시각화</h2>
+                <h2>출력</h2>
+                <p class="panel-caption">선택한 step 시점까지의 stdout과 오류를 보여줍니다.</p>
               </div>
-              <div class="stage-head-meta">
-                <span id="event-label" class="view-chip">대기 중</span>
-                <span id="primary-view-label" class="view-chip">SUMMARY</span>
+              <span id="output-status" class="chip">IDLE</span>
+            </div>
+            <div id="output-view" class="support-body empty-state">
+              실행 출력이 여기에 표시됩니다.
+            </div>
+          </section>
+        </section>
+
+        <section class="column-grid">
+          <section class="panel panel-main">
+            <div class="panel-head">
+              <div>
+                <h2 id="stage-title">주 시각화</h2>
+                <p id="stage-caption" class="panel-caption">
+                  코드에서 감지한 자료구조를 기준으로 가장 알맞은 시각화를 자동 선택합니다.
+                </p>
+              </div>
+              <div class="panel-actions">
+                <span id="event-label" class="chip">대기</span>
+                <span id="primary-view-label" class="chip chip-accent">SUMMARY</span>
               </div>
             </div>
-            <p id="message-label" class="stage-subtitle">
-              코드를 실행하면 핵심 흐름만 먼저 보여줍니다.
-            </p>
             <div id="primary-stage" class="visual-stage empty-state">
               실행 결과가 여기에 표시됩니다.
             </div>
           </section>
-        </main>
 
-        <div id="detail-dock" class="detail-dock hidden">
-          <button
-            id="variables-toggle"
-            class="drawer-toggle"
-            type="button"
-            aria-label="변수 패널 열기"
-            aria-expanded="false"
-          >
-            <span class="drawer-arrow">◀</span>
-            <span class="drawer-toggle-text">변수</span>
-          </button>
-          <button
-            id="stdout-toggle"
-            class="drawer-toggle"
-            type="button"
-            aria-label="출력 패널 열기"
-            aria-expanded="false"
-          >
-            <span class="drawer-arrow">◀</span>
-            <span class="drawer-toggle-text">출력</span>
-          </button>
-        </div>
-
-        <aside id="detail-drawer" class="detail-drawer hidden" aria-hidden="true">
-          <div class="detail-drawer-head">
-            <div>
-              <p class="panel-kicker">Details</p>
-              <h2 id="detail-drawer-title">보조 정보</h2>
-            </div>
-            <button id="close-drawer" class="ghost-button">닫기</button>
-          </div>
-
-          <div id="variables-panel" class="drawer-panel hidden">
-            <div class="drawer-section">
-              <h3>호출 스택</h3>
-              <div id="stack-view" class="stack-view empty-state">
-                실행을 시작하면 프레임별 지역 변수가 표시됩니다.
+          <section class="panel panel-secondary">
+            <div class="panel-head compact">
+              <div>
+                <h2>코드 설명</h2>
+                <p class="panel-caption">현재 step 설명과 자동 판단된 자료구조를 함께 정리합니다.</p>
               </div>
             </div>
-            <div class="drawer-section">
-              <h3>전역 변수</h3>
-              <div id="globals-view" class="globals-view empty-state">
-                아직 값이 없습니다.
-              </div>
+            <div id="explanation-view" class="support-body empty-state">
+              실행을 시작하면 설명이 여기에 표시됩니다.
             </div>
-          </div>
-
-          <div id="stdout-panel" class="drawer-panel hidden">
-            <div class="drawer-section">
-              <h3>stdout / 오류 확인</h3>
-              <pre id="stdout-view" class="stdout-view">실행 출력이 여기에 표시됩니다.</pre>
-            </div>
-          </div>
-        </aside>
-      </section>
+          </section>
+        </section>
+      </main>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js', v='20260311-3') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/utils.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/state.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/api.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/core/dom.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/code_panel.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/visual_panel.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/renderers/explanation_panel.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/controller.js', v='20260311-4') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='20260311-4') }}"></script>
   </body>
 </html>
