@@ -19,8 +19,8 @@
 .summary-card {
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(34, 29, 23, 0.08);
-  background: #fcfaf6;
+  border: 1px solid var(--stroke);
+  background: #fbfdff;
 }
 
 .summary-card.error {
@@ -62,7 +62,7 @@
   height: 10px;
   margin-right: 6px;
   border-radius: 999px;
-  background: rgba(34, 29, 23, 0.18);
+  background: rgba(51, 101, 138, 0.24);
 }
 
 .legend-dot.current {
@@ -91,27 +91,27 @@
 
 .graph-edge,
 .tree-edge {
-  stroke: rgba(34, 29, 23, 0.18);
+  stroke: rgba(42, 33, 29, 0.16);
   stroke-width: 2;
 }
 
 .graph-node circle,
 .data-tree-node rect,
 .tree-node rect {
-  fill: #fcfaf6;
-  stroke: rgba(34, 29, 23, 0.16);
+  fill: #ffffff;
+  stroke: rgba(184, 84, 80, 0.18);
   stroke-width: 2;
 }
 
 .graph-node.visited circle {
-  fill: rgba(32, 107, 107, 0.14);
+  fill: var(--teal-soft);
   stroke: var(--teal);
 }
 
 .graph-node.current circle,
 .data-tree-node.current rect,
 .tree-node.active rect {
-  fill: rgba(211, 106, 53, 0.14);
+  fill: var(--accent-soft);
   stroke: var(--accent);
 }
 
@@ -130,8 +130,8 @@
 .structure-board {
   padding: 8px;
   border-radius: 16px;
-  background: #fcfaf6;
-  border: 1px solid rgba(34, 29, 23, 0.08);
+  background: #fbfdff;
+  border: 1px solid var(--stroke);
 }
 
 .stack-visual {
@@ -144,19 +144,19 @@
   padding: 12px;
   border-radius: 14px;
   background: #fff;
-  border: 1px solid rgba(34, 29, 23, 0.1);
+  border: 1px solid var(--stroke);
   font-family: "IBM Plex Mono", monospace;
 }
 
 .stack-item.top,
 .queue-item.front {
   border-color: var(--accent);
-  background: rgba(211, 106, 53, 0.1);
+  background: var(--accent-soft);
 }
 
 .queue-item.back {
   border-color: var(--teal);
-  background: rgba(32, 107, 107, 0.1);
+  background: var(--teal-soft);
 }
 
 .structure-tag {

@@ -23,7 +23,7 @@
   margin: 0 auto;
   width: 4px;
   border-radius: 999px;
-  background: rgba(34, 29, 23, 0.12);
+  background: rgba(51, 101, 138, 0.14);
   transition: background 0.18s ease, transform 0.18s ease;
 }
 
@@ -37,17 +37,17 @@
   transform: translate(-50%, -50%);
   border-radius: 999px;
   background:
-    radial-gradient(circle at center, rgba(211, 106, 53, 0.95) 1.2px, transparent 1.8px)
+    radial-gradient(circle at center, rgba(51, 101, 138, 0.95) 1.2px, transparent 1.8px)
       center / 6px 12px repeat-y,
     rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(34, 29, 23, 0.08);
-  box-shadow: 0 12px 26px rgba(43, 32, 18, 0.12);
+  border: 1px solid rgba(51, 101, 138, 0.1);
+  box-shadow: 0 12px 26px rgba(51, 101, 138, 0.14);
 }
 
 .workspace-splitter:hover::before,
 .workspace-grid.is-resizing .workspace-splitter::before,
 .workspace-splitter:focus-visible::before {
-  background: rgba(211, 106, 53, 0.45);
+  background: rgba(51, 101, 138, 0.42);
   transform: scaleX(1.15);
 }
 
