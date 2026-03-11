@@ -3,6 +3,7 @@
   window.Visualizer.renderers = window.Visualizer.renderers || {};
 
   const utils = window.Visualizer.utils;
+  let callTreeZoom = null;
   let idleSearchQuery = "";
   const structureGuides = [
     {
@@ -102,7 +103,7 @@
         : "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
       dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree);
-      attachCallTreeInteractions(dom);
+      attachCallTreeInteractions(dom, step.call_tree);
       return view;
     }
 
@@ -845,6 +846,10 @@
 
   function buildStackMarkup(structure) {
     const items = structure.items || [];
+    const renderedItems = items.map((item, index) => ({
+      item,
+      index,
+    })).reverse();
     return `
       <div class="stage-scroll">
         <div class="visual-caption">
@@ -852,10 +857,10 @@
         </div>
         <div class="structure-board">
           <div class="stack-visual">
-            ${items.length
-              ? items
+            ${renderedItems.length
+              ? renderedItems
                   .map(
-                    (item, index) => `
+                    ({ item, index }) => `
                       <div class="stack-item ${index === structure.top_index ? "top" : ""}">
                         <span class="structure-tag">${index === structure.top_index ? "TOP" : `#${index}`}</span>
                         ${utils.escapeHtml(item)}
@@ -940,44 +945,66 @@
 
   function buildCallTreeMarkup(tree) {
     const normalized = normalizeCallTreeRoot(tree);
-    const layout = buildHierarchyLayout(normalized);
+    const layout = buildVerticalHierarchyLayout(normalized);
     return `
-      <div class="stage-scroll">
-        <div class="visual-caption">
-          <span><span class="legend-dot current"></span>활성 호출</span>
-          <span><span class="legend-dot"></span>비활성 호출</span>
+      <div class="tree-stage-shell">
+        <div class="tree-stage-head">
+          <div class="visual-caption tree-legend">
+            <span><span class="legend-dot current"></span>활성 호출</span>
+            <span><span class="legend-dot"></span>비활성 호출</span>
+          </div>
+          <div class="tree-zoom-controls">
+            <button type="button" class="tree-zoom-button" data-tree-zoom="out" aria-label="호출 트리 축소">-</button>
+            <span class="tree-zoom-level">100%</span>
+            <button type="button" class="tree-zoom-button" data-tree-zoom="in" aria-label="호출 트리 확대">+</button>
+            <button type="button" class="tree-zoom-button reset" data-tree-zoom="reset">초기화</button>
+          </div>
         </div>
-        <svg class="tree-svg" viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="xMidYMid meet">
-          ${layout.edges
-            .map(
-              (edge) => `
-                <path
-                  class="tree-edge"
-                  d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}"
-                  fill="none"
-                />
-              `,
-            )
-            .join("")}
-          ${layout.nodes
-            .map(
-              (node) => `
-                <g
-                  class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}"
-                  data-node-id="${utils.escapeHtml(node.id || "")}"
-                  tabindex="0"
-                  role="button"
-                  aria-label="${utils.escapeHtml(`${node.label || "frame"} frame card로 이동`)}"
-                  transform="translate(${node.x - 70}, ${node.y - 24})"
-                >
-                  <rect rx="14" ry="14" width="140" height="48"></rect>
-                  <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
-                  <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
-                </g>
-              `,
-            )
-            .join("")}
-        </svg>
+        <div class="tree-scroll-region" data-tree-scroll-region>
+          <div
+            class="tree-zoom-surface"
+            data-tree-base-width="${layout.width}"
+            data-tree-base-height="${layout.height}"
+            style="width:${layout.width}px; height:${layout.height}px;"
+          >
+            <svg
+              class="tree-svg call-tree-svg"
+              viewBox="0 0 ${layout.width} ${layout.height}"
+              preserveAspectRatio="xMidYMid meet"
+              style="width:${layout.width}px; height:${layout.height}px;"
+            >
+              ${layout.edges
+                .map(
+                  (edge) => `
+                    <path
+                      class="tree-edge"
+                      d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x} ${edge.from.y + 42}, ${edge.to.x} ${edge.to.y - 42}, ${edge.to.x} ${edge.to.y}"
+                      fill="none"
+                    />
+                  `,
+                )
+                .join("")}
+              ${layout.nodes
+                .map(
+                  (node) => `
+                    <g
+                      class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}"
+                      data-node-id="${utils.escapeHtml(node.id || "")}"
+                      tabindex="0"
+                      role="button"
+                      aria-label="${utils.escapeHtml(`${node.label || "frame"} frame card로 이동`)}"
+                      transform="translate(${node.x - 70}, ${node.y - 24})"
+                    >
+                      <rect rx="14" ry="14" width="140" height="48"></rect>
+                      <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
+                      <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
+                    </g>
+                  `,
+                )
+                .join("")}
+            </svg>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1039,9 +1066,65 @@
     };
   }
 
-  function attachCallTreeInteractions(dom) {
+  function buildVerticalHierarchyLayout(root) {
+    const nodes = [];
+    const edges = [];
+    const xGap = 176;
+    const yGap = 108;
+    const tracker = { nextX: 96, maxDepth: 0, maxX: 0 };
+
+    function assign(node, depth) {
+      tracker.maxDepth = Math.max(tracker.maxDepth, depth);
+      const children = node.children || [];
+
+      if (!children.length) {
+        node.x = tracker.nextX;
+        node.y = 76 + depth * yGap;
+        tracker.maxX = Math.max(tracker.maxX, node.x);
+        tracker.nextX += xGap;
+        return;
+      }
+
+      children.forEach((child) => assign(child, depth + 1));
+      node.x = utils.average(children.map((child) => child.x));
+      node.y = 76 + depth * yGap;
+      tracker.maxX = Math.max(tracker.maxX, node.x);
+    }
+
+    function collect(node, parent) {
+      nodes.push(node);
+      if (parent) {
+        edges.push({
+          from: { x: parent.x, y: parent.y + 24 },
+          to: { x: node.x, y: node.y - 24 },
+        });
+      }
+      (node.children || []).forEach((child) => collect(child, node));
+    }
+
+    assign(root, 0);
+    collect(root, null);
+
+    return {
+      nodes,
+      edges,
+      width: Math.max(420, tracker.maxX + 96),
+      height: Math.max(320, 160 + tracker.maxDepth * yGap),
+    };
+  }
+
+  function attachCallTreeInteractions(dom, tree) {
     const svg = dom.primaryStage.querySelector(".tree-svg");
-    if (!svg) {
+    const surface = dom.primaryStage.querySelector(".tree-zoom-surface");
+    const zoomLevel = dom.primaryStage.querySelector(".tree-zoom-level");
+    const scrollRegion = dom.primaryStage.querySelector("[data-tree-scroll-region]");
+    if (!svg || !surface || !zoomLevel || !scrollRegion) {
+      return;
+    }
+
+    const baseWidth = Number(surface.dataset.treeBaseWidth || 0);
+    const baseHeight = Number(surface.dataset.treeBaseHeight || 0);
+    if (!baseWidth || !baseHeight) {
       return;
     }
 
@@ -1057,10 +1140,6 @@
     };
 
     svg.querySelectorAll(".tree-node[data-node-id]").forEach((node) => {
-      node.addEventListener("click", () => {
-        focusFrameCard(node.dataset.nodeId);
-      });
-
       node.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") {
           return;
@@ -1068,6 +1147,105 @@
         event.preventDefault();
         focusFrameCard(node.dataset.nodeId);
       });
+    });
+
+    const applyZoom = (zoom, resetScroll = false) => {
+      const roundedZoom = Number(zoom.toFixed(2));
+      callTreeZoom = roundedZoom;
+      const scaledWidth = Math.round(baseWidth * roundedZoom);
+      const scaledHeight = Math.round(baseHeight * roundedZoom);
+      surface.style.width = `${scaledWidth}px`;
+      surface.style.height = `${scaledHeight}px`;
+      svg.style.width = `${scaledWidth}px`;
+      svg.style.height = `${scaledHeight}px`;
+      zoomLevel.textContent = `${Math.round(roundedZoom * 100)}%`;
+
+      if (resetScroll) {
+        scrollRegion.scrollTop = 0;
+        scrollRegion.scrollLeft = 0;
+      }
+    };
+
+    const computeFitZoom = () => {
+      const availableWidth = Math.max(240, scrollRegion.clientWidth - 24);
+      const availableHeight = Math.max(180, scrollRegion.clientHeight - 24);
+      return Math.min(1, availableWidth / baseWidth, availableHeight / baseHeight);
+    };
+
+    if (callTreeZoom == null) {
+      applyZoom(computeFitZoom(), true);
+    } else {
+      applyZoom(callTreeZoom, false);
+    }
+
+    dom.primaryStage.querySelectorAll("[data-tree-zoom]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.dataset.treeZoom;
+        if (action === "in") {
+          applyZoom(Math.min(2.5, (callTreeZoom || computeFitZoom()) + 0.2));
+        } else if (action === "out") {
+          applyZoom(Math.max(0.3, (callTreeZoom || computeFitZoom()) - 0.2));
+        } else {
+          applyZoom(computeFitZoom(), true);
+          return;
+        }
+      });
+    });
+
+    let dragState = null;
+
+    scrollRegion.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest(".tree-zoom-button")) {
+        return;
+      }
+      const targetNode = event.target.closest(".tree-node[data-node-id]");
+      dragState = {
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollLeft: scrollRegion.scrollLeft,
+        scrollTop: scrollRegion.scrollTop,
+        nodeId: targetNode ? targetNode.dataset.nodeId : null,
+        dragged: false,
+      };
+      scrollRegion.classList.add("dragging");
+      scrollRegion.setPointerCapture(event.pointerId);
+    });
+
+    scrollRegion.addEventListener("pointermove", (event) => {
+      if (!dragState) {
+        return;
+      }
+      const movedX = event.clientX - dragState.startX;
+      const movedY = event.clientY - dragState.startY;
+      if (Math.abs(movedX) > 4 || Math.abs(movedY) > 4) {
+        dragState.dragged = true;
+      }
+      scrollRegion.scrollLeft = dragState.scrollLeft - (event.clientX - dragState.startX);
+      scrollRegion.scrollTop = dragState.scrollTop - (event.clientY - dragState.startY);
+    });
+
+    const endDrag = (event) => {
+      if (!dragState) {
+        return;
+      }
+      const completedDrag = dragState;
+      dragState = null;
+      scrollRegion.classList.remove("dragging");
+      if (event && scrollRegion.hasPointerCapture(event.pointerId)) {
+        scrollRegion.releasePointerCapture(event.pointerId);
+      }
+      if (!completedDrag.dragged && completedDrag.nodeId) {
+        focusFrameCard(completedDrag.nodeId);
+      }
+    };
+
+    scrollRegion.addEventListener("pointerup", endDrag);
+    scrollRegion.addEventListener("pointercancel", endDrag);
+    scrollRegion.addEventListener("mouseleave", () => {
+      if (!dragState) {
+        return;
+      }
+      scrollRegion.classList.remove("dragging");
     });
   }
 

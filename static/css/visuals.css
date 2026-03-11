@@ -111,8 +111,88 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.tree-stage-shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.tree-stage-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  gap: 8px;
+  padding: 2px 0 4px;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.tree-legend {
+  gap: 14px;
+}
+
+.tree-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-zoom-button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(184, 84, 80, 0.16);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tree-zoom-button.reset {
+  min-width: auto;
+}
+
+.tree-zoom-button:hover,
+.tree-zoom-button:focus-visible {
+  border-color: rgba(184, 84, 80, 0.42);
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.tree-zoom-level {
+  min-width: 50px;
+  text-align: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+}
+
+.tree-zoom-surface {
+  min-width: 100%;
+  display: grid;
+  justify-content: center;
+  align-content: start;
+}
+
+.tree-scroll-region {
+  min-height: 0;
+  overflow: auto;
+  cursor: grab;
+}
+
+.tree-scroll-region.dragging {
+  cursor: grabbing;
+}
+
+.tree-scroll-region .tree-node {
+  cursor: pointer;
 }
 
 .legend-dot {
