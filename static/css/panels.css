@@ -89,6 +89,24 @@
   accent-color: var(--accent);
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.line-readout {
+  display: none;
+}
+
 .editor-wrap,
 .code-viewer,
 .support-body,
@@ -339,4 +357,17 @@
   font-size: 0.82rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+@media (max-width: 1180px) {
+  .slider-controls {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .inline-slider {
+    flex: 1 1 180px;
+    min-width: 140px;
+  }
 }
