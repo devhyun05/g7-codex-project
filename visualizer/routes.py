@@ -27,7 +27,7 @@ def visualize():
                         "structures": [],
                         "intent_map": {},
                         "summary": "",
-                        "intents": {"sorting": False},
+                        "intents": {"sorting": False, "sorting_order": "unknown"},
                     },
                 }
             ),

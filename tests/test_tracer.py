@@ -222,6 +222,29 @@ class ExecutionTracerTest(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertEqual(result["analysis"]["intents"]["sorting_order"], "asc")
+
+    def test_detects_descending_sort_order_from_compare_swap_pattern(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "def reorder_desc(values):",
+                    "    n = len(values)",
+                    "    for i in range(n):",
+                    "        for j in range(0, n - i - 1):",
+                    "            if values[j] < values[j + 1]:",
+                    "                values[j], values[j + 1] = values[j + 1], values[j]",
+                    "    return values",
+                    "",
+                    "data = [1, 9, 3, 7]",
+                    "print(reorder_desc(data))",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["analysis"]["intents"]["sorting"])
+        self.assertEqual(result["analysis"]["intents"]["sorting_order"], "desc")
 
 
 if __name__ == "__main__":

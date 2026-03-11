@@ -27,6 +27,7 @@
           summary: "",
           intents: {
             sorting: false,
+            sorting_order: "unknown",
           },
         },
       };

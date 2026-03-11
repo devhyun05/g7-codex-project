@@ -191,7 +191,10 @@
             candidate.compareValues,
           )
         : [],
-      sortedIndices: detectSortedIndices(candidate.compareValues),
+      sortedIndices: detectSortedIndices(
+        candidate.compareValues,
+        getSortingOrder(state),
+      ),
     };
   }
 
@@ -360,37 +363,134 @@
     return changed;
   }
 
-  function detectSortedIndices(values) {
+  function getSortingOrder(state) {
+    const intents = state && state.runResult && state.runResult.analysis
+      ? state.runResult.analysis.intents
+      : null;
+    if (!intents || !intents.sorting_order) {
+      return "unknown";
+    }
+    return intents.sorting_order;
+  }
+
+  function detectSortedIndices(values, sortingOrder) {
     if (!Array.isArray(values) || values.length < 2) {
       return [];
     }
 
-    const numericMode = values.every((value) => normalizeNumericValue(value) !== null);
-    const sorted = [...values].sort((left, right) => {
-      if (numericMode) {
-        return normalizeNumericValue(left) - normalizeNumericValue(right);
-      }
-      return String(left).localeCompare(String(right), undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-    });
+    if (sortingOrder === "asc") {
+      return detectAscBubbleFixedSuffix(values);
+    }
+    if (sortingOrder === "desc") {
+      return detectDescBubbleFixedPrefix(values);
+    }
+    return detectDefaultSortedIndices(values);
+  }
 
+  function detectAscBubbleFixedSuffix(values) {
+    for (let start = values.length - 1; start >= 0; start -= 1) {
+      if (!isNonDecreasing(values, start, values.length - 1)) {
+        continue;
+      }
+      if (!prefixLessOrEqualBoundary(values, start)) {
+        continue;
+      }
+      return makeRange(start, values.length - 1);
+    }
+    return [];
+  }
+
+  function detectDescBubbleFixedPrefix(values) {
+    for (let end = 0; end < values.length; end += 1) {
+      if (!isNonIncreasing(values, 0, end)) {
+        continue;
+      }
+      if (!suffixLessOrEqualBoundary(values, end)) {
+        continue;
+      }
+      return makeRange(0, end);
+    }
+    return [];
+  }
+
+  function detectDefaultSortedIndices(values) {
+    const sorted = [...values].sort(compareValuesAscending);
     const indices = [];
     for (let index = 0; index < values.length; index += 1) {
-      if (toComparableKey(values[index]) === toComparableKey(sorted[index])) {
+      if (compareValuesAscending(values[index], sorted[index]) === 0) {
         indices.push(index);
       }
     }
     return indices;
   }
 
-  function toComparableKey(value) {
-    const numericValue = normalizeNumericValue(value);
-    if (numericValue !== null) {
-      return `n:${numericValue}`;
+  function makeRange(start, end) {
+    if (start > end) {
+      return [];
     }
-    return `s:${String(value)}`;
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }
+
+  function isNonDecreasing(values, start, end) {
+    for (let i = start + 1; i <= end; i += 1) {
+      if (compareValuesAscending(values[i - 1], values[i]) > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function isNonIncreasing(values, start, end) {
+    for (let i = start + 1; i <= end; i += 1) {
+      if (compareValuesAscending(values[i - 1], values[i]) < 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function prefixLessOrEqualBoundary(values, start) {
+    if (start <= 0) {
+      return true;
+    }
+    const boundary = values[start];
+    for (let i = 0; i < start; i += 1) {
+      if (compareValuesAscending(values[i], boundary) > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function suffixLessOrEqualBoundary(values, end) {
+    if (end >= values.length - 1) {
+      return true;
+    }
+    const boundary = values[end];
+    for (let i = end + 1; i < values.length; i += 1) {
+      if (compareValuesAscending(values[i], boundary) > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function compareValuesAscending(left, right) {
+    const leftNumber = normalizeNumericValue(left);
+    const rightNumber = normalizeNumericValue(right);
+    if (leftNumber !== null && rightNumber !== null) {
+      if (leftNumber < rightNumber) {
+        return -1;
+      }
+      if (leftNumber > rightNumber) {
+        return 1;
+      }
+      return 0;
+    }
+    return String(left).localeCompare(String(right), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
   }
 
   function buildSortingMarkup(sortingState) {

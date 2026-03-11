@@ -112,7 +112,7 @@ class ExecutionTracer:
             "structures": [],
             "intent_map": {},
             "summary": "",
-            "intents": {"sorting": False},
+            "intents": {"sorting": False, "sorting_order": "unknown"},
         }
         self.detector = StructureDetector(self._short_repr, self.code_analysis)
         self.call_root = {

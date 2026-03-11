@@ -13,7 +13,7 @@ def analyze_code_structures(code: str) -> dict[str, Any]:
             "structures": [],
             "intent_map": {},
             "summary": "",
-            "intents": {"sorting": False},
+            "intents": {"sorting": False, "sorting_order": "unknown"},
         }
 
     analyzer = CodeStructureAnalyzer()
@@ -29,6 +29,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         self.method_ops: dict[str, set[str]] = defaultdict(set)
         self.hints: dict[str, dict[str, Any]] = {}
         self.sorting_detected = False
+        self.sorting_order = "unknown"
 
     def build_result(self) -> dict[str, Any]:
         for name, ops in self.method_ops.items():
@@ -62,7 +63,10 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             "structures": structures,
             "intent_map": {name: hint["kind"] for name, hint in self.hints.items()},
             "summary": summary,
-            "intents": {"sorting": self.sorting_detected},
+            "intents": {
+                "sorting": self.sorting_detected,
+                "sorting_order": self.sorting_order,
+            },
         }
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -133,10 +137,12 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_If(self, node: ast.If) -> None:
-        compared_name = self._compared_subscript_name(node.test)
-        if compared_name:
+        compared = self._compared_subscript_name(node.test)
+        if compared:
+            compared_name, compared_order = compared
             if any(self._is_in_place_swap_assignment(stmt, compared_name) for stmt in node.body):
                 self.sorting_detected = True
+                self._register_sort_order(compared_order)
         self.generic_visit(node)
 
     def _inspect_assignment(self, name: str, value: ast.AST | None) -> None:
@@ -296,7 +302,16 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             "shell_sort",
         }
 
-    def _compared_subscript_name(self, node: ast.AST) -> str | None:
+    def _register_sort_order(self, order: str | None) -> None:
+        if not order or order == "unknown":
+            return
+        if self.sorting_order == "unknown":
+            self.sorting_order = order
+            return
+        if self.sorting_order != order:
+            self.sorting_order = "unknown"
+
+    def _compared_subscript_name(self, node: ast.AST) -> tuple[str, str] | None:
         if not isinstance(node, ast.Compare):
             return None
         if len(node.ops) != 1 or len(node.comparators) != 1:
@@ -315,7 +330,13 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             return None
         if left[1] == right[1]:
             return None
-        return left[0]
+        if isinstance(node.ops[0], (ast.Gt, ast.GtE)):
+            order = "asc"
+        elif isinstance(node.ops[0], (ast.Lt, ast.LtE)):
+            order = "desc"
+        else:
+            order = "unknown"
+        return (left[0], order)
 
     def _is_in_place_swap_assignment(
         self,
