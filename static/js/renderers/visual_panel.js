@@ -789,36 +789,47 @@
 
   function buildLinkedListMarkup(structure) {
     const nodes = structure.nodes || [];
+    const indexById = new Map(nodes.map((node, index) => [node.id, index]));
     return `
       <div class="stage-scroll">
         <div class="visual-caption">
-          <span><span class="legend-dot current"></span>현재 포인터</span>
+          <span><span class="legend-dot pointer-current"></span>현재 노드</span>
         </div>
         <div class="structure-board">
           <div class="linked-list-lane">
             ${nodes.length
               ? nodes
                   .map((node, index) => {
-                    const classes = [
-                      "linked-node",
+                    const cardClasses = [
+                      "linked-node-card",
                       node.id === structure.head_id ? "head" : "",
                       node.id === structure.current_id ? "current" : "",
                     ]
                       .filter(Boolean)
                       .join(" ");
-                    const arrow = index < nodes.length - 1 ? '<span class="linked-arrow">next →</span>' : "";
+                    let pointerLabel = "next → null";
+                    if (node.next_id) {
+                      if (indexById.has(node.next_id)) {
+                        pointerLabel = `next → #${indexById.get(node.next_id)}`;
+                      } else {
+                        pointerLabel = "next → ?";
+                      }
+                    }
                     return `
                       <div class="linked-segment">
-                        <div class="${classes}">
+                        <div class="${cardClasses}">
                           <span class="linked-tag">${node.id === structure.head_id ? "HEAD" : `#${index}`}</span>
-                          <strong>${utils.escapeHtml(node.label)}</strong>
+                          <div class="linked-node-grid">
+                            <div class="linked-cell linked-value">${utils.escapeHtml(node.label)}</div>
+                            <div class="linked-cell linked-next">next</div>
+                          </div>
                         </div>
-                        ${arrow}
+                        <span class="linked-pointer ${node.next_id ? "" : "null"}">${utils.escapeHtml(pointerLabel)}</span>
                       </div>
                     `;
                   })
                   .join("")
-              : '<div class="linked-node">empty</div>'}
+              : '<div class="linked-node-card">empty</div>'}
             ${structure.cycle ? '<span class="linked-extra">cycle detected</span>' : ""}
             ${structure.truncated ? '<span class="linked-extra">truncated...</span>' : ""}
           </div>
