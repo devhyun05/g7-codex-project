@@ -6,6 +6,31 @@
   transition: transform 0.18s ease, opacity 0.18s ease, background 0.18s ease;
 }
 
+.language-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.language-select {
+  min-width: 94px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
 .primary-button {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #fff;

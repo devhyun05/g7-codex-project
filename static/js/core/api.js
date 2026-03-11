@@ -1,13 +1,13 @@
 (function () {
   window.Visualizer = window.Visualizer || {};
 
-  async function visualizeCode(code, stdin, signal) {
+  async function visualizeCode(code, stdin, language, signal) {
     const response = await fetch("/api/visualize", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ code, stdin }),
+      body: JSON.stringify({ code, stdin, language }),
       signal,
     });
 
@@ -22,6 +22,7 @@
         steps: [],
         stdout: "",
         stdin,
+        language,
         analysis: {
           structures: [],
           intent_map: {},

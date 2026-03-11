@@ -14,18 +14,48 @@
   let dom;
   let state;
 
+  const languageMeta = {
+    python: {
+      code: "Python code",
+      stdin: "Input data",
+      hint: "Python keeps the original runtime tracer.",
+      placeholder: "Enter Python code here",
+      emptyDisplay: "Enter code before running.",
+    },
+    java: {
+      code: "Java code",
+      stdin: "System.in",
+      hint: "Java compiles and runs with local javac/java, then maps results into the shared UI.",
+      placeholder: "class Main { public static void main(String[] args) { } }",
+      emptyDisplay: "Enter Java code before running.",
+    },
+    cpp: {
+      code: "C++ code",
+      stdin: "stdin",
+      hint: "C++ compiles and runs with a local compiler, then uses static step simulation.",
+      placeholder: "#include <iostream>\nint main() {\n    return 0;\n}",
+      emptyDisplay: "Enter C++ code before running.",
+    },
+  };
+
   function initialize() {
     dom = domApi.getRefs();
     state = stateApi.createState();
     splitterLayout.initialize(dom);
     bindEvents();
+    dom.languageSelect.value = state.language;
     dom.codeInput.value = state.code;
     dom.stdinInput.value = state.stdin;
+    syncLanguageUi();
     resetEditorState();
   }
 
   function bindEvents() {
     dom.runButton.addEventListener("click", runVisualization);
+    dom.languageSelect.addEventListener("change", () => {
+      state.language = dom.languageSelect.value || "python";
+      syncLanguageUi();
+    });
     dom.prevStepButton.addEventListener("click", () => moveStep(-1));
     dom.nextStepButton.addEventListener("click", () => moveStep(1));
     dom.playStepButton.addEventListener("click", togglePlayback);
@@ -45,8 +75,17 @@
   }
 
   function syncDraft() {
+    state.language = dom.languageSelect.value || "python";
     state.code = dom.codeInput.value;
     state.stdin = dom.stdinInput.value;
+  }
+
+  function syncLanguageUi() {
+    const current = languageMeta[state.language] || languageMeta.python;
+    dom.codeLabel.textContent = current.code;
+    dom.stdinLabel.textContent = current.stdin;
+    dom.languageHint.textContent = current.hint;
+    dom.codeInput.placeholder = current.placeholder;
   }
 
   function setClientRunError(error, displayError) {
@@ -101,24 +140,29 @@
     syncDraft();
 
     if (!state.code.trim()) {
-      setClientRunError(
-        "시각화할 파이썬 코드를 입력하세요.",
-        "실행할 Python 코드를 먼저 입력해 주세요. 코드 입력창에 한 줄 이상 작성한 뒤 다시 실행해 보세요.",
-      );
+      const current = languageMeta[state.language] || languageMeta.python;
+      setClientRunError(current.emptyDisplay, current.emptyDisplay);
       resetEditorState(state.runResult.error);
       return;
     }
 
     dom.runButton.disabled = true;
     dom.playStepButton.disabled = true;
-    dom.runButton.textContent = "실행 중...";
+    dom.runButton.textContent = "Running...";
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
     try {
-      const { payload } = await api.visualizeCode(state.code, state.stdin, controller.signal);
+      const { payload } = await api.visualizeCode(
+        state.code,
+        state.stdin,
+        state.language,
+        controller.signal,
+      );
       window.clearTimeout(timeoutId);
 
+      state.language = payload.language || state.language;
+      dom.languageSelect.value = state.language;
       state.code = payload.code || state.code;
       state.stdin = payload.stdin || state.stdin;
       state.steps = payload.steps || [];
@@ -134,29 +178,30 @@
       };
       dom.codeInput.value = state.code;
       dom.stdinInput.value = state.stdin;
+      syncLanguageUi();
 
       if (state.runResult.ok && state.steps.length) {
         renderTraceState();
       } else {
-        resetEditorState(payload.error || "실행 기록을 만들지 못했습니다.");
+        resetEditorState(payload.error || "No execution steps were created.");
       }
     } catch (error) {
       window.clearTimeout(timeoutId);
       if (error.name === "AbortError") {
         setClientRunError(
-          "서버 응답이 지연되고 있습니다. 개발 서버가 실행 중인지 확인하세요.",
-          "실행 요청이 제한 시간 안에 끝나지 않았습니다. 무한 루프이거나 서버가 바쁜 상태일 수 있으니 잠시 후 다시 시도해 주세요.",
+          "The request timed out.",
+          "The request timed out. Check for an infinite loop or restart the server.",
         );
       } else {
         setClientRunError(
-          "서버에 연결하지 못했습니다. `python3 app.py`로 서버가 실행 중인지 확인하세요.",
-          "개발 서버에 연결하지 못했습니다. `python3 app.py`로 서버를 실행한 뒤 다시 시도해 주세요.",
+          "Could not reach the local server.",
+          "Could not reach the local server. Start the app and try again.",
         );
       }
       resetEditorState(state.runResult.error);
     } finally {
       dom.runButton.disabled = false;
-      dom.runButton.textContent = "실행 시작";
+      dom.runButton.textContent = "Run";
     }
   }
 
@@ -232,7 +277,7 @@
       renderTraceState();
     }
 
-    dom.playStepButton.textContent = "일시정지";
+    dom.playStepButton.textContent = "Pause";
     state.timer = window.setInterval(() => {
       if (state.currentIndex >= state.steps.length - 1) {
         stopPlayback();
@@ -248,7 +293,7 @@
       window.clearInterval(state.timer);
       state.timer = null;
     }
-    dom.playStepButton.textContent = "재생";
+    dom.playStepButton.textContent = "Play";
   }
 
   function getCurrentStep() {

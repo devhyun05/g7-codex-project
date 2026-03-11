@@ -15,6 +15,7 @@ def visualize():
     payload = request.get_json(silent=True) or {}
     code = (payload.get("code") or "").rstrip()
     stdin = payload.get("stdin") or ""
+    language = (payload.get("language") or "python").strip().lower()
 
     if not code:
         return (
@@ -29,6 +30,7 @@ def visualize():
                     "steps": [],
                     "stdout": "",
                     "stdin": stdin,
+                    "language": language,
                     "analysis": {
                         "structures": [],
                         "intent_map": {},
@@ -40,6 +42,6 @@ def visualize():
             400,
         )
 
-    result = trace_service.visualize(code, stdin=stdin)
+    result = trace_service.visualize(code, stdin=stdin, language=language)
     status_code = 200 if result.get("steps") else 400
     return jsonify(result), status_code

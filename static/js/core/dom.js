@@ -4,6 +4,10 @@
   function getRefs() {
     return {
       homeButton: document.getElementById("home-button"),
+      languageSelect: document.getElementById("language-select"),
+      languageHint: document.getElementById("language-hint"),
+      codeLabel: document.getElementById("code-label"),
+      stdinLabel: document.getElementById("stdin-label"),
       codeInput: document.getElementById("code-input"),
       stdinInput: document.getElementById("stdin-input"),
       runButton: document.getElementById("run-button"),

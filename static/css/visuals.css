@@ -16,6 +16,33 @@
   gap: 12px;
 }
 
+.summary-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.summary-ribbon-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(42, 33, 29, 0.06);
+  border: 1px solid rgba(42, 33, 29, 0.08);
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.summary-ribbon-chip.accent {
+  background: var(--accent-soft);
+  border-color: rgba(184, 84, 80, 0.22);
+  color: var(--accent-strong);
+}
+
 .summary-card {
   padding: 14px;
   border-radius: 16px;
@@ -25,6 +52,10 @@
 
 .summary-card.error {
   background: var(--rose-soft);
+}
+
+.summary-card.standout {
+  background: linear-gradient(180deg, rgba(184, 84, 80, 0.06), rgba(255, 255, 255, 0.98));
 }
 
 .summary-label {

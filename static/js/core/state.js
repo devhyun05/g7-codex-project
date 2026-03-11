@@ -26,6 +26,7 @@
 
   function createState() {
     return {
+      language: "python",
       code: "",
       stdin: "",
       steps: [],

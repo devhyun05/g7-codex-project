@@ -4,37 +4,18 @@
 
   const utils = window.Visualizer.utils;
   let idleSearchQuery = "";
+
   const structureGuides = [
-    {
-      label: "STACK",
-      title: "스택",
-      pattern: "append() + pop()",
-      description: "흐름을 top 중심으로 표시합니다.",
-    },
-    {
-      label: "QUEUE",
-      title: "큐",
-      pattern: "deque / popleft() / pop(0)",
-      description: "패턴을 front와 back으로 구분합니다.",
-    },
-    {
-      label: "TREE",
-      title: "트리",
-      pattern: "left / right / children",
-      description: "관계를 노드 구조로 정리합니다.",
-    },
-    {
-      label: "GRAPH",
-      title: "그래프",
-      pattern: "인접 리스트 / 인접 딕셔너리",
-      description: "연결과 방문 상태를 보여줍니다.",
-    },
+    { label: "STACK", title: "Stack", pattern: "append + pop / push + pop", description: "Shows the top-first flow of a LIFO container." },
+    { label: "QUEUE", title: "Queue", pattern: "deque / queue / poll", description: "Shows front/back movement in FIFO order." },
+    { label: "TREE", title: "Tree", pattern: "left / right / children", description: "Builds a node hierarchy from tree-like data." },
+    { label: "GRAPH", title: "Graph", pattern: "adjacency list / matrix", description: "Shows nodes, edges, and traversal state." },
   ];
 
   function renderIdle(dom) {
     idleSearchQuery = "";
-    dom.stageTitle.textContent = "시각화 가능한 자료 구조";
-    dom.stageCaption.textContent = "실행하면 감지된 항목에 맞춰 이 영역이 자동으로 전환됩니다.";
+    dom.stageTitle.textContent = "Visual Structures";
+    dom.stageCaption.textContent = "Detected data structures and execution views appear here.";
     dom.primaryViewLabel.textContent = "GUIDE";
     dom.primaryStage.className = "visual-stage";
     dom.primaryStage.innerHTML = buildStructureGuideMarkup();
@@ -46,240 +27,149 @@
     const sortingState = extractSortingState(step, state);
     const view = detectPrimaryView(step, state, sortingState);
     dom.primaryViewLabel.textContent = utils.formatViewLabel(view);
+    syncHeader(dom, state, step, view);
 
     if (view === "sorting") {
-      dom.stageTitle.textContent = "정렬 시각화";
-      dom.stageCaption.textContent = "정렬 대상 배열의 값 변화를 막대 그래프로 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildSortingMarkup(sortingState);
+      dom.primaryStage.innerHTML = buildSortingMarkup(state, sortingState);
       attachSortingInteractions(dom);
       return view;
     }
 
     if (view === "graph") {
-      dom.stageTitle.textContent = "그래프 흐름";
-      dom.stageCaption.textContent = "코드에서 감지한 인접 구조를 그래프로 해석해 현재 노드와 방문 상태를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildGraphMarkup(step.graph);
+      dom.primaryStage.innerHTML = buildGraphMarkup(state, step.graph);
       return view;
     }
 
     if (view === "data-tree") {
-      dom.stageTitle.textContent = "트리 구조";
-      dom.stageCaption.textContent = "left / right 또는 children 관계를 기반으로 트리를 구성했습니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildDataTreeMarkup(step.structure);
+      dom.primaryStage.innerHTML = buildDataTreeMarkup(state, step.structure);
       return view;
     }
 
     if (view === "stack") {
-      dom.stageTitle.textContent = "스택 상태";
-      dom.stageCaption.textContent = "append + pop 흐름을 스택으로 해석해 top을 강조했습니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildStackMarkup(step.structure);
+      dom.primaryStage.innerHTML = buildStackMarkup(state, step.structure);
       return view;
     }
 
     if (view === "queue") {
-      dom.stageTitle.textContent = "큐 상태";
-      dom.stageCaption.textContent = "deque / pop(0) 패턴을 큐로 해석해 front와 back을 구분했습니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildQueueMarkup(step.structure);
+      dom.primaryStage.innerHTML = buildQueueMarkup(state, step.structure);
       return view;
     }
 
     if (view === "call-tree") {
-      const sortingIntent = Boolean(
-        state &&
-          state.runResult &&
-          state.runResult.analysis &&
-          state.runResult.analysis.intents &&
-          state.runResult.analysis.intents.sorting,
-      );
-      dom.stageTitle.textContent = "호출 트리";
-      dom.stageCaption.textContent = sortingIntent
-        ? "정렬 알고리즘 실행으로 판단되어 Visualgo처럼 호출 트리를 우선 보여줍니다."
-        : "특정 자료구조보다 재귀 호출 흐름이 더 뚜렷해 호출 트리를 보여줍니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildCallTreeMarkup(step.call_tree);
+      dom.primaryStage.innerHTML = buildCallTreeMarkup(state, step.call_tree);
       attachCallTreeInteractions(dom);
       return view;
     }
 
-    dom.stageTitle.textContent = state.runResult.ok ? "실행 요약" : "오류 요약";
-    dom.stageCaption.textContent = state.runResult.ok
-      ? "특정 자료구조가 감지되지 않아서 현재 실행 상태를 요약합니다."
-      : "오류가 있어도 가능한 범위의 실행 흐름을 유지합니다.";
     dom.primaryStage.className = "visual-stage";
     dom.primaryStage.innerHTML = buildSummaryMarkup(step, activeFrame, state);
     return view;
+  }
+
+  function syncHeader(dom, state, step, view) {
+    const map = {
+      sorting: {
+        title: "Sorting Replay",
+        caption: "Array changes are projected into bars so swaps and fixed regions stand out.",
+      },
+      graph: {
+        title: "Graph View",
+        caption: "Detected adjacency structures are arranged as a graph layout.",
+      },
+      "data-tree": {
+        title: "Tree View",
+        caption: "Tree-like objects are mapped into a hierarchy.",
+      },
+      stack: {
+        title: "Stack View",
+        caption: "Top-of-stack state is highlighted at each step.",
+      },
+      queue: {
+        title: "Queue View",
+        caption: "Front and back are highlighted in the current queue state.",
+      },
+      "call-tree": {
+        title: "Call Tree",
+        caption: "Function nesting and returns are shown as a tree.",
+      },
+      summary: {
+        title: state.runResult.ok ? "Execution Summary" : "Error Summary",
+        caption: "A compact overview of the current step and detected structures.",
+      },
+    };
+    const current = map[view] || map.summary;
+    dom.stageTitle.textContent = current.title;
+    dom.stageCaption.textContent = current.caption;
+    if (step && step.event === "error") {
+      dom.stageCaption.textContent = "Execution stopped with an error. Review the final state below.";
+    }
   }
 
   function detectPrimaryView(step, state, sortingState) {
     if (shouldPreferSortingBars(step, state, sortingState)) {
       return "sorting";
     }
-
-    if (shouldPreferSortingCallTree(step, state)) {
-      return "call-tree";
-    }
-
     if (step && step.graph && Array.isArray(step.graph.nodes) && step.graph.nodes.length) {
       return "graph";
     }
-
     if (step && step.structure && step.structure.kind === "tree") {
       return "data-tree";
     }
-
     if (step && step.structure && step.structure.kind === "stack") {
       return "stack";
     }
-
     if (step && step.structure && step.structure.kind === "queue") {
       return "queue";
     }
-
-    if (
-      step &&
-      step.call_tree &&
-      Array.isArray(step.call_tree.children) &&
-      step.call_tree.children.length
-    ) {
+    if (step && step.call_tree && Array.isArray(step.call_tree.children) && step.call_tree.children.length) {
       return "call-tree";
     }
-
     return "summary";
-  }
-
-  function shouldPreferSortingCallTree(step, state) {
-    if (!step || !step.call_tree || !Array.isArray(step.call_tree.children)) {
-      return false;
-    }
-    if (!step.call_tree.children.length) {
-      return false;
-    }
-    const intents = state && state.runResult && state.runResult.analysis
-      ? state.runResult.analysis.intents
-      : null;
-    return Boolean(intents && intents.sorting);
   }
 
   function shouldPreferSortingBars(step, state, sortingState) {
     const intents = state && state.runResult && state.runResult.analysis
       ? state.runResult.analysis.intents
       : null;
-    const stackTop = step && Array.isArray(step.stack) && step.stack.length
-      ? step.stack[step.stack.length - 1]
-      : null;
-    const stackLooksSorting = Boolean(
-      stackTop &&
-        typeof stackTop.name === "string" &&
-        stackTop.name.toLowerCase().includes("sort"),
-    );
-    if (!(intents && intents.sorting) && !stackLooksSorting) {
-      return false;
-    }
-    return Boolean(sortingState || stackLooksSorting || (intents && intents.sorting));
+    return Boolean(sortingState && intents && intents.sorting);
   }
 
   function extractSortingState(step, state) {
-    const fromCurrent = findSortingStateInStep(step, state, true);
-    if (fromCurrent) {
-      return fromCurrent;
-    }
-
-    const nearby = findNearbySortingState(state);
-    if (nearby) {
-      return nearby;
-    }
-    return null;
-  }
-
-  function findSortingStateInStep(step, state, includeDiff) {
     if (!step) {
       return null;
     }
-
-    const topFrame = step.stack && step.stack.length
-      ? step.stack[step.stack.length - 1]
-      : null;
-    const localCandidate = topFrame ? findNumericListCandidate(topFrame.locals, "locals") : null;
-    const globalCandidate = findNumericListCandidate(step.globals, "globals");
-    const candidate = pickBetterCandidate(localCandidate, globalCandidate);
+    const candidate = findNumericListCandidate(step.globals, "globals")
+      || findNumericListCandidate(getTopFrame(step)?.locals, "locals");
     if (!candidate) {
       return null;
     }
-
+    const previousValues = state && state.currentIndex > 0
+      ? findCandidateValues(state.steps[state.currentIndex - 1], candidate.scope, candidate.name)
+      : null;
     return {
       ...candidate,
-      changedIndices: includeDiff
-        ? detectChangedIndices(
-            state && Array.isArray(state.steps) && state.currentIndex > 0
-              ? findCandidateValues(state.steps[state.currentIndex - 1], candidate.scope, candidate.name)
-              : null,
-            candidate.compareValues,
-          )
-        : [],
-      sortedIndices: detectSortedIndices(
-        candidate.compareValues,
-        getSortingOrder(state),
-        topFrame ? topFrame.locals : null,
-      ),
+      changedIndices: detectChangedIndices(previousValues, candidate.compareValues),
+      sortedIndices: detectDefaultSortedIndices(candidate.compareValues),
     };
   }
 
-  function findNearbySortingState(state) {
-    if (!state || !Array.isArray(state.steps) || !state.steps.length) {
-      return null;
-    }
-
-    for (let offset = 1; offset < state.steps.length; offset += 1) {
-      const leftIndex = state.currentIndex - offset;
-      if (leftIndex >= 0) {
-        const leftState = findSortingStateInStep(state.steps[leftIndex], state, false);
-        if (leftState) {
-          return leftState;
-        }
-      }
-
-      const rightIndex = state.currentIndex + offset;
-      if (rightIndex < state.steps.length) {
-        const rightState = findSortingStateInStep(state.steps[rightIndex], state, false);
-        if (rightState) {
-          return rightState;
-        }
-      }
-    }
-    return null;
-  }
-
-  function pickBetterCandidate(left, right) {
-    if (!left) {
-      return right;
-    }
-    if (!right) {
-      return left;
-    }
-    if (right.values.length > left.values.length) {
-      return right;
-    }
-    return left;
+  function getTopFrame(step) {
+    return step && Array.isArray(step.stack) && step.stack.length
+      ? step.stack[step.stack.length - 1]
+      : null;
   }
 
   function findCandidateValues(step, scope, name) {
     if (!step) {
       return null;
     }
-    let source = null;
-    if (scope === "locals") {
-      const topFrame = step.stack && step.stack.length
-        ? step.stack[step.stack.length - 1]
-        : null;
-      source = topFrame ? topFrame.locals : null;
-    } else {
-      source = step.globals;
-    }
+    const source = scope === "locals" ? getTopFrame(step)?.locals : step.globals;
     if (!source || !source[name]) {
       return null;
     }
@@ -291,7 +181,6 @@
     if (!namespace) {
       return null;
     }
-
     let best = null;
     Object.entries(namespace).forEach(([name, value]) => {
       const parsed = parseNumericList(name, value, scope);
@@ -306,15 +195,9 @@
   }
 
   function parseNumericList(name, value, scope) {
-    if (
-      !value ||
-      !["list", "tuple"].includes(value.type) ||
-      !Array.isArray(value.items) ||
-      value.items.length < 2
-    ) {
+    if (!value || !["list", "tuple"].includes(value.type) || !Array.isArray(value.items) || value.items.length < 2) {
       return null;
     }
-
     const values = [];
     const labels = [];
     const compareValues = [];
@@ -324,17 +207,11 @@
       if (!item) {
         return null;
       }
-
       const rawValue = item.value;
       const numericValue = normalizeNumericValue(rawValue);
-
       if (numericValue === null) {
         allNumeric = false;
-        if (
-          typeof rawValue !== "string" &&
-          typeof rawValue !== "number" &&
-          typeof rawValue !== "boolean"
-        ) {
+        if (typeof rawValue !== "string" && typeof rawValue !== "number" && typeof rawValue !== "boolean") {
           return null;
         }
       } else {
@@ -344,11 +221,7 @@
       compareValues.push(rawValue);
     }
 
-    let displayValues = values;
-    if (!allNumeric) {
-      displayValues = rankValues(labels);
-    }
-
+    const displayValues = allNumeric ? values : rankValues(labels);
     return {
       name,
       scope,
@@ -394,90 +267,6 @@
     return changed;
   }
 
-  function getSortingOrder(state) {
-    const intents = state && state.runResult && state.runResult.analysis
-      ? state.runResult.analysis.intents
-      : null;
-    if (!intents || !intents.sorting_order) {
-      return "unknown";
-    }
-    return intents.sorting_order;
-  }
-
-  function detectSortedIndices(values, sortingOrder, frameLocals) {
-    if (!Array.isArray(values) || values.length < 2) {
-      return [];
-    }
-
-    const byPass = detectBubblePassSortedIndices(values.length, sortingOrder, frameLocals);
-    if (byPass) {
-      return byPass;
-    }
-
-    if (sortingOrder === "asc") {
-      return detectAscBubbleFixedSuffix(values);
-    }
-    if (sortingOrder === "desc") {
-      return detectDescBubbleFixedPrefix(values);
-    }
-    return detectDefaultSortedIndices(values);
-  }
-
-  function detectBubblePassSortedIndices(length, sortingOrder, frameLocals) {
-    if (!frameLocals || typeof frameLocals !== "object") {
-      return null;
-    }
-    const pass = readNonNegativeInt(frameLocals.i);
-    if (pass === null) {
-      return null;
-    }
-    const capped = Math.max(0, Math.min(length, pass + 1));
-    if (sortingOrder === "asc") {
-      return makeRange(length - capped, length - 1);
-    }
-    if (sortingOrder === "desc") {
-      return makeRange(0, capped - 1);
-    }
-    return null;
-  }
-
-  function readNonNegativeInt(serializedValue) {
-    if (!serializedValue || typeof serializedValue !== "object") {
-      return null;
-    }
-    const raw = serializedValue.value;
-    if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0) {
-      return null;
-    }
-    return raw;
-  }
-
-  function detectAscBubbleFixedSuffix(values) {
-    for (let start = values.length - 1; start >= 0; start -= 1) {
-      if (!isNonDecreasing(values, start, values.length - 1)) {
-        continue;
-      }
-      if (!prefixLessOrEqualBoundary(values, start)) {
-        continue;
-      }
-      return makeRange(start, values.length - 1);
-    }
-    return [];
-  }
-
-  function detectDescBubbleFixedPrefix(values) {
-    for (let end = 0; end < values.length; end += 1) {
-      if (!isNonIncreasing(values, 0, end)) {
-        continue;
-      }
-      if (!suffixLessOrEqualBoundary(values, end)) {
-        continue;
-      }
-      return makeRange(0, end);
-    }
-    return [];
-  }
-
   function detectDefaultSortedIndices(values) {
     const sorted = [...values].sort(compareValuesAscending);
     const indices = [];
@@ -489,68 +278,11 @@
     return indices;
   }
 
-  function makeRange(start, end) {
-    if (start > end) {
-      return [];
-    }
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }
-
-  function isNonDecreasing(values, start, end) {
-    for (let i = start + 1; i <= end; i += 1) {
-      if (compareValuesAscending(values[i - 1], values[i]) > 0) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function isNonIncreasing(values, start, end) {
-    for (let i = start + 1; i <= end; i += 1) {
-      if (compareValuesAscending(values[i - 1], values[i]) < 0) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function prefixLessOrEqualBoundary(values, start) {
-    if (start <= 0) {
-      return true;
-    }
-    const boundary = values[start];
-    for (let i = 0; i < start; i += 1) {
-      if (compareValuesAscending(values[i], boundary) > 0) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function suffixLessOrEqualBoundary(values, end) {
-    if (end >= values.length - 1) {
-      return true;
-    }
-    const boundary = values[end];
-    for (let i = end + 1; i < values.length; i += 1) {
-      if (compareValuesAscending(values[i], boundary) > 0) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   function compareValuesAscending(left, right) {
     const leftNumber = normalizeNumericValue(left);
     const rightNumber = normalizeNumericValue(right);
     if (leftNumber !== null && rightNumber !== null) {
-      if (leftNumber < rightNumber) {
-        return -1;
-      }
-      if (leftNumber > rightNumber) {
-        return 1;
-      }
-      return 0;
+      return leftNumber === rightNumber ? 0 : leftNumber < rightNumber ? -1 : 1;
     }
     return String(left).localeCompare(String(right), undefined, {
       numeric: true,
@@ -558,136 +290,69 @@
     });
   }
 
-  function buildSortingMarkup(sortingState) {
-    if (!sortingState) {
-      return `
-        <div class="stage-scroll">
-          <div class="structure-board">정렬 대상 배열이 아직 보이지 않습니다. step을 이동해 배열이 생성된 지점을 확인하세요.</div>
-        </div>
-      `;
-    }
-
-    const range = sortingState.max - sortingState.min || 1;
-    return `
-      <div class="stage-scroll">
-        <div class="sorting-board">
-          <div class="sorting-bars">
-            ${sortingState.values
-              .map((value, index) => {
-                const normalized = ((value - sortingState.min) / range) * 100;
-                const height = Math.round(24 + (normalized / 100) * 200);
-                const changed = sortingState.changedIndices.includes(index);
-                const sorted = sortingState.sortedIndices.includes(index);
-                const statusClass = [changed ? "changed" : "", sorted ? "sorted" : ""]
-                  .filter(Boolean)
-                  .join(" ");
-                return `
-                  <div class="sorting-bar-wrap">
-                    <div class="sorting-bar ${statusClass}" style="height: ${height}px;">
-                      <span class="sorting-value">${utils.escapeHtml(sortingState.labels[index] || String(value))}</span>
-                    </div>
-                    <span class="sorting-index">${index}</span>
-                  </div>
-                `;
-              })
-              .join("")}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function attachSortingInteractions(dom) {
-    const lane = dom.primaryStage.querySelector(".sorting-bars");
-    if (!lane) {
-      return;
-    }
-
-    if (lane.dataset.scrollEnhanced === "true") {
-      return;
-    }
-    lane.dataset.scrollEnhanced = "true";
-
-    lane.addEventListener("wheel", (event) => {
-      if (event.deltaY === 0) {
-        return;
-      }
-      lane.scrollLeft += event.deltaY;
-      event.preventDefault();
-    }, { passive: false });
-
-    let dragging = false;
-    let startX = 0;
-    let startLeft = 0;
-
-    lane.addEventListener("pointerdown", (event) => {
-      dragging = true;
-      startX = event.clientX;
-      startLeft = lane.scrollLeft;
-      lane.classList.add("dragging");
-      lane.setPointerCapture(event.pointerId);
-    });
-
-    lane.addEventListener("pointermove", (event) => {
-      if (!dragging) {
-        return;
-      }
-      const delta = event.clientX - startX;
-      lane.scrollLeft = startLeft - delta;
-    });
-
-    const endDrag = (event) => {
-      if (!dragging) {
-        return;
-      }
-      dragging = false;
-      lane.classList.remove("dragging");
-      if (lane.hasPointerCapture(event.pointerId)) {
-        lane.releasePointerCapture(event.pointerId);
-      }
-    };
-
-    lane.addEventListener("pointerup", endDrag);
-    lane.addEventListener("pointercancel", endDrag);
-  }
-
   function buildSummaryMarkup(step, activeFrame, state) {
     const structures = state.runResult.analysis.structures || [];
     const lineSource = step && step.line_source ? step.line_source.trim() : "";
     const stackDepth = step && Array.isArray(step.stack) ? step.stack.length : 0;
     const stdinLines = utils.countInputLines(state.runResult.stdin);
+    const language = (state.language || "python").toUpperCase();
+    const modeLabel = state.language === "python" ? "Runtime trace" : "Static replay";
+    const primaryStructure = structures.length ? `${structures[0].kind}:${structures[0].name}` : "none";
 
     return `
       <div class="stage-scroll">
+        <div class="summary-ribbon">
+          <span class="summary-ribbon-chip accent">${utils.escapeHtml(language)}</span>
+          <span class="summary-ribbon-chip">${utils.escapeHtml(modeLabel)}</span>
+          <span class="summary-ribbon-chip">${utils.escapeHtml(`Primary ${primaryStructure}`)}</span>
+        </div>
         <div class="summary-grid">
           <article class="summary-card ${state.runResult.ok ? "" : "error"}">
-            <span class="summary-label">상태</span>
+            <span class="summary-label">Status</span>
             <strong>${utils.escapeHtml(state.runResult.ok ? utils.formatEvent(step?.event || "end") : "error")}</strong>
-            <p>${utils.escapeHtml((step && step.message) || state.runResult.error || "실행 전입니다.")}</p>
+            <p>${utils.escapeHtml((step && step.message) || state.runResult.error || "Execution is ready.")}</p>
           </article>
           <article class="summary-card">
-            <span class="summary-label">현재 함수</span>
+            <span class="summary-label">Focus</span>
             <strong>${utils.escapeHtml(activeFrame ? activeFrame.name : "module")}</strong>
-            <p>${utils.escapeHtml(lineSource || "현재 강조할 줄이 없습니다.")}</p>
+            <p>${utils.escapeHtml(lineSource || "No active source line at this step.")}</p>
           </article>
           <article class="summary-card">
-            <span class="summary-label">호출 깊이</span>
+            <span class="summary-label">Call Depth</span>
             <strong>${stackDepth}</strong>
-            <p>현재 활성화된 프레임 수</p>
+            <p>${utils.escapeHtml(stackDepth ? "Frames are active in the current stack." : "No active function frames.")}</p>
           </article>
           <article class="summary-card">
-            <span class="summary-label">자동 판단</span>
+            <span class="summary-label">Structures</span>
             <strong>${structures.length}</strong>
-            <p>${utils.escapeHtml(structures.length ? state.runResult.analysis.summary : "감지된 자료구조가 없습니다.")}</p>
+            <p>${utils.escapeHtml(structures.length ? state.runResult.analysis.summary : "No structure hints were detected yet.")}</p>
           </article>
           <article class="summary-card">
-            <span class="summary-label">입력 줄 수</span>
+            <span class="summary-label">Input Lines</span>
             <strong>${stdinLines}</strong>
-            <p>${utils.escapeHtml(stdinLines ? "입력 데이터를 함께 사용했습니다." : "input() 없이 실행했습니다.")}</p>
+            <p>${utils.escapeHtml(stdinLines ? "Standard input was consumed during execution." : "This run did not consume stdin.")}</p>
+          </article>
+          <article class="summary-card standout">
+            <span class="summary-label">Visualizer Mode</span>
+            <strong>${utils.escapeHtml(modeLabel)}</strong>
+            <p>${utils.escapeHtml(describeExecutionMode(state.language || "python"))}</p>
           </article>
         </div>
       </div>
     `;
+  }
+
+  function describeExecutionMode(language) {
+    if (language === "python") {
+      return "Each step comes from the live Python tracer, so locals and frames are exact.";
+    }
+    if (language === "java") {
+      return "Java is compiled and executed locally, then mapped into the shared visual model.";
+    }
+    if (language === "cpp") {
+      return "C++ is compiled and executed locally, then replayed as structure-aware visual steps.";
+    }
+    return "The shared visualizer pipeline is active.";
   }
 
   function buildStructureGuideMarkup() {
@@ -698,34 +363,30 @@
           <input
             type="search"
             class="structure-guide-search-input"
-            placeholder="제목이나 내용으로 검색"
-            aria-label="시각화 가능한 자료 구조 검색"
+            placeholder="Search structures"
+            aria-label="Search visual structures"
             value="${utils.escapeHtml(idleSearchQuery)}"
             data-guide-search-input
           />
         </div>
         <div class="summary-grid structure-guide-grid" data-guide-grid>
-          ${structureGuides
-            .map(
-              (item) => `
-                <article
-                  class="summary-card guide-card${guideMatchesQuery(item, normalizedQuery) ? "" : " hidden"}"
-                  data-guide-card
-                  data-search-text="${utils.escapeHtml(buildGuideSearchText(item))}"
-                >
-                  <span class="summary-label">${utils.escapeHtml(item.label)}</span>
-                  <strong>${utils.escapeHtml(item.title)}</strong>
-                  <p><span class="guide-pattern">${utils.escapeHtml(item.pattern)}</span> ${utils.escapeHtml(item.description)}</p>
-                </article>
-              `,
-            )
-            .join("")}
+          ${structureGuides.map((item) => `
+            <article
+              class="summary-card guide-card${guideMatchesQuery(item, normalizedQuery) ? "" : " hidden"}"
+              data-guide-card
+              data-search-text="${utils.escapeHtml(buildGuideSearchText(item))}"
+            >
+              <span class="summary-label">${utils.escapeHtml(item.label)}</span>
+              <strong>${utils.escapeHtml(item.title)}</strong>
+              <p><span class="guide-pattern">${utils.escapeHtml(item.pattern)}</span> ${utils.escapeHtml(item.description)}</p>
+            </article>
+          `).join("")}
         </div>
         <div class="structure-guide-empty${hasGuideMatches(normalizedQuery) ? " hidden" : ""}" data-guide-empty>
-          검색 결과가 없습니다. 다른 키워드로 다시 찾아보세요.
+          No matching structure cards were found.
         </div>
         <div class="structure-guide-note">
-          재귀가 핵심인 코드는 호출 트리로, 특정 구조가 없으면 실행 요약으로 표시됩니다.
+          If no structure is detected, the visualizer falls back to a call tree or execution summary.
         </div>
       </div>
     `;
@@ -747,7 +408,6 @@
     const normalizedQuery = normalizeGuideSearchQuery(query);
     const cards = stage.querySelectorAll("[data-guide-card]");
     let visibleCount = 0;
-
     cards.forEach((card) => {
       const matched = !normalizedQuery || card.dataset.searchText.includes(normalizedQuery);
       card.classList.toggle("hidden", !matched);
@@ -755,15 +415,8 @@
         visibleCount += 1;
       }
     });
-
-    const grid = stage.querySelector("[data-guide-grid]");
-    const empty = stage.querySelector("[data-guide-empty]");
-    if (grid) {
-      grid.classList.toggle("hidden", visibleCount === 0);
-    }
-    if (empty) {
-      empty.classList.toggle("hidden", visibleCount !== 0);
-    }
+    stage.querySelector("[data-guide-grid]")?.classList.toggle("hidden", visibleCount === 0);
+    stage.querySelector("[data-guide-empty]")?.classList.toggle("hidden", visibleCount !== 0);
   }
 
   function hasGuideMatches(normalizedQuery) {
@@ -774,95 +427,73 @@
   }
 
   function guideMatchesQuery(item, normalizedQuery) {
-    if (!normalizedQuery) {
-      return true;
-    }
-    return buildGuideSearchText(item).includes(normalizedQuery);
+    return !normalizedQuery || buildGuideSearchText(item).includes(normalizedQuery);
   }
 
   function buildGuideSearchText(item) {
-    return normalizeGuideSearchQuery(
-      [item.label, item.title, item.pattern, item.description].join(" "),
-    );
+    return normalizeGuideSearchQuery([item.label, item.title, item.pattern, item.description].join(" "));
   }
 
   function normalizeGuideSearchQuery(value) {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
+    return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
   }
 
-  function buildGraphMarkup(graph) {
+  function buildGraphMarkup(state, graph) {
     const size = 360;
     const center = size / 2;
     const radius = 118;
     const positionedNodes = graph.nodes.map((node, index) => {
       const angle = (Math.PI * 2 * index) / graph.nodes.length - Math.PI / 2;
-      return {
-        ...node,
-        x: center + radius * Math.cos(angle),
-        y: center + radius * Math.sin(angle),
-      };
+      return { ...node, x: center + radius * Math.cos(angle), y: center + radius * Math.sin(angle) };
     });
     const positionMap = Object.fromEntries(positionedNodes.map((node) => [node.id, node]));
 
     return `
       <div class="stage-scroll">
+        ${buildMetaRibbon(state, "Graph detected")}
         <div class="visual-caption">
-          <span><span class="legend-dot current"></span>현재 노드</span>
-          <span><span class="legend-dot visited"></span>방문 완료</span>
-          <span><span class="legend-dot"></span>미방문</span>
+          <span><span class="legend-dot current"></span>Current</span>
+          <span><span class="legend-dot visited"></span>Visited</span>
+          <span><span class="legend-dot"></span>Unvisited</span>
         </div>
         <svg class="graph-svg" viewBox="0 0 440 420" preserveAspectRatio="xMidYMid meet">
           <text class="graph-meta" x="18" y="26">${utils.escapeXml(graph.name)}${graph.tree_mode ? " (tree-like)" : ""}</text>
-          ${graph.edges
-            .map((edge) => {
-              const source = positionMap[edge.source];
-              const target = positionMap[edge.target];
-              if (!source || !target) {
-                return "";
-              }
-              return `
-                <line class="graph-edge" x1="${source.x + 40}" y1="${source.y + 24}" x2="${target.x + 40}" y2="${target.y + 24}" />
-              `;
-            })
-            .join("")}
-          ${positionedNodes
-            .map(
-              (node) => `
-                <g class="graph-node ${node.visited ? "visited" : ""} ${node.current ? "current" : ""}">
-                  <circle cx="${node.x + 40}" cy="${node.y + 24}" r="24"></circle>
-                  <text class="graph-label" x="${node.x + 40}" y="${node.y + 29}" text-anchor="middle">${utils.escapeXml(node.label)}</text>
-                </g>
-              `,
-            )
-            .join("")}
+          ${graph.edges.map((edge) => {
+            const source = positionMap[edge.source];
+            const target = positionMap[edge.target];
+            if (!source || !target) {
+              return "";
+            }
+            return `<line class="graph-edge" x1="${source.x + 40}" y1="${source.y + 24}" x2="${target.x + 40}" y2="${target.y + 24}" />`;
+          }).join("")}
+          ${positionedNodes.map((node) => `
+            <g class="graph-node ${node.visited ? "visited" : ""} ${node.current ? "current" : ""}">
+              <circle cx="${node.x + 40}" cy="${node.y + 24}" r="24"></circle>
+              <text class="graph-label" x="${node.x + 40}" y="${node.y + 29}" text-anchor="middle">${utils.escapeXml(node.label)}</text>
+            </g>
+          `).join("")}
         </svg>
       </div>
     `;
   }
 
-  function buildStackMarkup(structure) {
+  function buildStackMarkup(state, structure) {
     const items = structure.items || [];
     return `
       <div class="stage-scroll">
+        ${buildMetaRibbon(state, `Stack ${structure.name || ""}`)}
         <div class="visual-caption">
-          <span><span class="legend-dot current"></span>top</span>
+          <span><span class="legend-dot current"></span>Top</span>
         </div>
         <div class="structure-board">
           <div class="stack-visual">
             ${items.length
-              ? items
-                  .map(
-                    (item, index) => `
-                      <div class="stack-item ${index === structure.top_index ? "top" : ""}">
-                        <span class="structure-tag">${index === structure.top_index ? "TOP" : `#${index}`}</span>
-                        ${utils.escapeHtml(item)}
-                      </div>
-                    `,
-                  )
-                  .join("")
+              ? items.map((item, index) => `
+                <div class="stack-item ${index === structure.top_index ? "top" : ""}">
+                  <span class="structure-tag">${index === structure.top_index ? "TOP" : `#${index}`}</span>
+                  ${utils.escapeHtml(item)}
+                </div>
+              `).join("")
               : '<div class="stack-item">empty</div>'}
           </div>
         </div>
@@ -870,31 +501,28 @@
     `;
   }
 
-  function buildQueueMarkup(structure) {
+  function buildQueueMarkup(state, structure) {
     const items = structure.items || [];
     return `
       <div class="stage-scroll">
+        ${buildMetaRibbon(state, `Queue ${structure.name || ""}`)}
         <div class="visual-caption">
-          <span><span class="legend-dot current"></span>front</span>
-          <span><span class="legend-dot visited"></span>back</span>
+          <span><span class="legend-dot current"></span>Front</span>
+          <span><span class="legend-dot visited"></span>Back</span>
         </div>
         <div class="structure-board">
           <div class="queue-visual">
             <div class="queue-end">FRONT</div>
             <div class="queue-lane">
               ${items.length
-                ? items
-                    .map((item, index) => {
-                      const classes = [
-                        "queue-item",
-                        index === structure.front_index ? "front" : "",
-                        index === structure.back_index ? "back" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-                      return `<div class="${classes}">${utils.escapeHtml(item)}</div>`;
-                    })
-                    .join("")
+                ? items.map((item, index) => {
+                  const classes = [
+                    "queue-item",
+                    index === structure.front_index ? "front" : "",
+                    index === structure.back_index ? "back" : "",
+                  ].filter(Boolean).join(" ");
+                  return `<div class="${classes}">${utils.escapeHtml(item)}</div>`;
+                }).join("")
                 : '<div class="queue-item">empty</div>'}
             </div>
             <div class="queue-end">BACK</div>
@@ -904,91 +532,160 @@
     `;
   }
 
-  function buildDataTreeMarkup(structure) {
+  function buildDataTreeMarkup(state, structure) {
     const layout = buildHierarchyLayout(structure.root);
     return `
       <div class="stage-scroll">
+        ${buildMetaRibbon(state, `Tree ${structure.name || ""}`)}
         <div class="visual-caption">
-          <span><span class="legend-dot current"></span>현재 노드</span>
+          <span><span class="legend-dot current"></span>Current node</span>
         </div>
         <svg class="tree-svg" viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="xMidYMid meet">
-          ${layout.edges
-            .map(
-              (edge) => `
-                <path
-                  class="tree-edge"
-                  d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}"
-                  fill="none"
-                />
-              `,
-            )
-            .join("")}
-          ${layout.nodes
-            .map(
-              (node) => `
-                <g class="data-tree-node ${node.id === structure.current_id ? "current" : ""}" transform="translate(${node.x - 64}, ${node.y - 20})">
-                  <rect rx="14" ry="14" width="128" height="40"></rect>
-                  <text x="12" y="24">${utils.escapeXml(utils.trimLabel(node.label, 17))}</text>
-                </g>
-              `,
-            )
-            .join("")}
+          ${layout.edges.map((edge) => `
+            <path class="tree-edge" d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}" fill="none" />
+          `).join("")}
+          ${layout.nodes.map((node) => `
+            <g class="data-tree-node ${node.id === structure.current_id ? "current" : ""}" transform="translate(${node.x - 64}, ${node.y - 20})">
+              <rect rx="14" ry="14" width="128" height="40"></rect>
+              <text x="12" y="24">${utils.escapeXml(utils.trimLabel(node.label, 17))}</text>
+            </g>
+          `).join("")}
         </svg>
       </div>
     `;
   }
 
-  function buildCallTreeMarkup(tree) {
+  function buildCallTreeMarkup(state, tree) {
     const normalized = normalizeCallTreeRoot(tree);
     const layout = buildHierarchyLayout(normalized);
     return `
       <div class="stage-scroll">
+        ${buildMetaRibbon(state, "Call tree")}
         <div class="visual-caption">
-          <span><span class="legend-dot current"></span>활성 호출</span>
-          <span><span class="legend-dot"></span>비활성 호출</span>
+          <span><span class="legend-dot current"></span>Active frame</span>
+          <span><span class="legend-dot"></span>Inactive frame</span>
         </div>
         <svg class="tree-svg" viewBox="0 0 ${layout.width} ${layout.height}" preserveAspectRatio="xMidYMid meet">
-          ${layout.edges
-            .map(
-              (edge) => `
-                <path
-                  class="tree-edge"
-                  d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}"
-                  fill="none"
-                />
-              `,
-            )
-            .join("")}
-          ${layout.nodes
-            .map(
-              (node) => `
-                <g
-                  class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}"
-                  data-node-id="${utils.escapeHtml(node.id || "")}"
-                  tabindex="0"
-                  role="button"
-                  aria-label="${utils.escapeHtml(`${node.label || "frame"} frame card로 이동`)}"
-                  transform="translate(${node.x - 70}, ${node.y - 24})"
-                >
-                  <rect rx="14" ry="14" width="140" height="48"></rect>
-                  <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
-                  <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
-                </g>
-              `,
-            )
-            .join("")}
+          ${layout.edges.map((edge) => `
+            <path class="tree-edge" d="M ${edge.from.x} ${edge.from.y} C ${edge.from.x + 70} ${edge.from.y}, ${edge.to.x - 70} ${edge.to.y}, ${edge.to.x} ${edge.to.y}" fill="none" />
+          `).join("")}
+          ${layout.nodes.map((node) => `
+            <g
+              class="tree-node ${node.active ? "active" : ""} ${node.status === "exception" ? "exception" : ""}"
+              data-node-id="${utils.escapeHtml(node.id || "")}"
+              tabindex="0"
+              role="button"
+              aria-label="${utils.escapeHtml(`${node.label || "frame"} frame`)}"
+              transform="translate(${node.x - 70}, ${node.y - 24})"
+            >
+              <rect rx="14" ry="14" width="140" height="48"></rect>
+              <text x="12" y="20">${utils.escapeXml(utils.trimLabel(node.label, 19))}</text>
+              <text x="12" y="36">${utils.escapeXml(utils.shortStatus(node.status))}</text>
+            </g>
+          `).join("")}
         </svg>
       </div>
     `;
   }
 
+  function buildSortingMarkup(state, sortingState) {
+    if (!sortingState) {
+      return `
+        <div class="stage-scroll">
+          ${buildMetaRibbon(state, "Sorting view")}
+          <div class="structure-board">No sortable array was visible in this step.</div>
+        </div>
+      `;
+    }
+    const range = sortingState.max - sortingState.min || 1;
+    return `
+      <div class="stage-scroll">
+        ${buildMetaRibbon(state, `Sorting ${sortingState.name}`)}
+        <div class="visual-caption">
+          <span><span class="legend-dot current"></span>Changed</span>
+          <span><span class="legend-dot sorted"></span>Aligned with sorted order</span>
+        </div>
+        <div class="sorting-board">
+          <div class="sorting-bars">
+            ${sortingState.values.map((value, index) => {
+              const normalized = ((value - sortingState.min) / range) * 100;
+              const height = Math.round(24 + (normalized / 100) * 200);
+              const changed = sortingState.changedIndices.includes(index);
+              const sorted = sortingState.sortedIndices.includes(index);
+              const statusClass = [changed ? "changed" : "", sorted ? "sorted" : ""].filter(Boolean).join(" ");
+              return `
+                <div class="sorting-bar-wrap">
+                  <div class="sorting-bar ${statusClass}" style="height: ${height}px;">
+                    <span class="sorting-value">${utils.escapeHtml(sortingState.labels[index] || String(value))}</span>
+                  </div>
+                  <span class="sorting-index">${index}</span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildMetaRibbon(state, emphasis) {
+    const language = (state.language || "python").toUpperCase();
+    const modeLabel = state.language === "python" ? "Exact runtime" : "Compiler + replay";
+    return `
+      <div class="summary-ribbon">
+        <span class="summary-ribbon-chip accent">${utils.escapeHtml(language)}</span>
+        <span class="summary-ribbon-chip">${utils.escapeHtml(modeLabel)}</span>
+        <span class="summary-ribbon-chip">${utils.escapeHtml(emphasis)}</span>
+      </div>
+    `;
+  }
+
+  function attachSortingInteractions(dom) {
+    const lane = dom.primaryStage.querySelector(".sorting-bars");
+    if (!lane || lane.dataset.scrollEnhanced === "true") {
+      return;
+    }
+    lane.dataset.scrollEnhanced = "true";
+    lane.addEventListener("wheel", (event) => {
+      if (event.deltaY === 0) {
+        return;
+      }
+      lane.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+
+    let dragging = false;
+    let startX = 0;
+    let startLeft = 0;
+    lane.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      startX = event.clientX;
+      startLeft = lane.scrollLeft;
+      lane.classList.add("dragging");
+      lane.setPointerCapture(event.pointerId);
+    });
+    lane.addEventListener("pointermove", (event) => {
+      if (!dragging) {
+        return;
+      }
+      lane.scrollLeft = startLeft - (event.clientX - startX);
+    });
+    const endDrag = (event) => {
+      if (!dragging) {
+        return;
+      }
+      dragging = false;
+      lane.classList.remove("dragging");
+      if (lane.hasPointerCapture(event.pointerId)) {
+        lane.releasePointerCapture(event.pointerId);
+      }
+    };
+    lane.addEventListener("pointerup", endDrag);
+    lane.addEventListener("pointercancel", endDrag);
+  }
+
   function normalizeCallTreeRoot(tree) {
-    if (
-      tree &&
-      tree.label === "module" &&
-      Array.isArray(tree.children) &&
-      tree.children.length === 1
-    ) {
+    if (tree && tree.label === "module" && Array.isArray(tree.children) && tree.children.length === 1) {
       return tree.children[0];
     }
     return tree;
@@ -1004,14 +701,12 @@
     function assign(node, depth) {
       tracker.maxDepth = Math.max(tracker.maxDepth, depth);
       const children = node.children || [];
-
       if (!children.length) {
         node.x = 90 + depth * xGap;
         node.y = tracker.nextY;
         tracker.nextY += yGap;
         return;
       }
-
       children.forEach((child) => assign(child, depth + 1));
       node.x = 90 + depth * xGap;
       node.y = utils.average(children.map((child) => child.y));
@@ -1030,7 +725,6 @@
 
     assign(root, 0);
     collect(root, null);
-
     return {
       nodes,
       edges,
@@ -1044,23 +738,15 @@
     if (!svg) {
       return;
     }
-
     const focusFrameCard = (nodeId) => {
-      const flowSidebar = window.Visualizer
-        && window.Visualizer.renderers
-        ? window.Visualizer.renderers.flowSidebar
-        : null;
+      const flowSidebar = window.Visualizer?.renderers?.flowSidebar;
       if (!nodeId || !flowSidebar || typeof flowSidebar.focusFrame !== "function") {
         return;
       }
       flowSidebar.focusFrame(dom, nodeId);
     };
-
     svg.querySelectorAll(".tree-node[data-node-id]").forEach((node) => {
-      node.addEventListener("click", () => {
-        focusFrameCard(node.dataset.nodeId);
-      });
-
+      node.addEventListener("click", () => focusFrameCard(node.dataset.nodeId));
       node.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") {
           return;
