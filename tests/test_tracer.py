@@ -1,5 +1,10 @@
 import unittest
+import shutil
 
+from visualizer.services.language_service import LanguageDetector
+from visualizer.services.tracing_registry import TracingRegistry
+from visualizer.services.trace_service import TraceService
+from visualizer.tracing.javascript_tracer import JavaScriptLineTracer
 from tracer import ExecutionTracer
 
 
@@ -364,6 +369,264 @@ class ExecutionTracerTest(unittest.TestCase):
         target_step = next(step for step in result["steps"] if step["line"] == 3)
         self.assertIn("실제 비교는", target_step["explanation"])
         self.assertIn("3 > 2", target_step["explanation"])
+
+
+class LanguageDetectorTest(unittest.TestCase):
+    def setUp(self):
+        self.detector = LanguageDetector()
+
+    def test_detects_cpp_code(self):
+        result = self.detector.detect(
+            "\n".join(
+                [
+                    "#include <bits/stdc++.h>",
+                    "using namespace std;",
+                    "int main() {",
+                    "  ios::sync_with_stdio(false);",
+                    "  cout << 1 << '\\n';",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertEqual(result["key"], "cpp")
+        self.assertFalse(result["trace_supported"])
+
+    def test_honors_manual_language_selection(self):
+        result = self.detector.detect("console.log(1);", requested="javascript")
+
+        self.assertEqual(result["key"], "javascript")
+        self.assertEqual(result["source"], "manual")
+
+    def test_trace_service_returns_language_metadata_for_non_python_code(self):
+        class FakeExecutor:
+            def execute(self, code, stdin, language_key):
+                return {
+                    "ok": True,
+                    "code": code,
+                    "stdin": stdin,
+                    "steps": [],
+                    "stdout": "hello from executor",
+                    "error": None,
+                    "analysis": {"structures": [], "intent_map": {}, "summary": ""},
+                    "run_mode": "execution",
+                    "execution": {"language_key": language_key, "ran": True},
+                }
+
+        service = TraceService(executor=FakeExecutor())
+        result = service.visualize(
+            "\n".join(
+                [
+                    "public class Main {",
+                    "  public static void main(String[] args) {",
+                    "    System.out.println(1);",
+                    "  }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertEqual(result["language"]["key"], "java")
+        self.assertEqual(result["steps"], [])
+        self.assertEqual(result["stdout"], "hello from executor")
+        self.assertEqual(result["run_mode"], "execution")
+
+    def test_trace_service_returns_trace_capabilities(self):
+        service = TraceService()
+        result = service.visualize("print(1)")
+
+        self.assertEqual(result["trace_capabilities"]["language_key"], "python")
+        self.assertTrue(result["trace_capabilities"]["line_tracing"])
+
+
+class TracingRegistryTest(unittest.TestCase):
+    def test_marks_cpp_as_planned_and_hard(self):
+        registry = TracingRegistry()
+
+        capabilities = registry.describe("cpp")
+
+        self.assertEqual(capabilities["status"], "planned")
+        self.assertEqual(capabilities["difficulty"], "hard")
+        self.assertFalse(capabilities["line_tracing"])
+
+    def test_marks_csharp_as_experimental_line_tracer(self):
+        registry = TracingRegistry()
+
+        capabilities = registry.describe("csharp")
+
+        self.assertEqual(capabilities["status"], "experimental")
+        self.assertTrue(capabilities["line_tracing"])
+
+    def test_marks_javascript_as_experimental_line_tracer(self):
+        registry = TracingRegistry()
+
+        capabilities = registry.describe("javascript")
+
+        self.assertEqual(capabilities["status"], "experimental")
+        self.assertTrue(capabilities["line_tracing"])
+
+
+class JavaScriptTracingUnitTest(unittest.TestCase):
+    def test_javascript_instrumentation_inserts_trace_calls(self):
+        tracer = JavaScriptLineTracer()
+        instrumented = tracer._instrument_code(
+            "\n".join(
+                [
+                    "function solve() {",
+                    "  let x = 1;",
+                    "  x += 2;",
+                    "  console.log(x);",
+                    "}",
+                    "solve();",
+                ]
+            )
+        )
+
+        self.assertIn("__traceStep(2);", instrumented)
+        self.assertIn("__traceStep(3);", instrumented)
+        self.assertIn("__traceStep(6);", instrumented)
+
+    def test_javascript_tracer_reports_missing_runtime(self):
+        tracer = JavaScriptLineTracer()
+        result = tracer.trace("console.log(1);")
+
+        if shutil.which("node"):
+            self.assertIn("steps", result)
+        else:
+            self.assertEqual(result["error"], "Required runtime was not found: node.")
+
+
+@unittest.skipUnless(shutil.which("dotnet"), "dotnet runtime not available")
+class CSharpTracingIntegrationTest(unittest.TestCase):
+    def test_csharp_generates_line_steps(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        int x = 1;",
+                    "        x += 2;",
+                    "        Console.WriteLine(x);",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertEqual(result["language"]["key"], "csharp")
+        self.assertEqual(result["run_mode"], "trace")
+        self.assertGreaterEqual(len(result["steps"]), 3)
+        self.assertTrue(any(step.get("line") == 6 for step in result["steps"]))
+        snapshot_step = next(step for step in result["steps"] if step.get("line") == 6)
+        self.assertIn("x", snapshot_step["globals"])
+        self.assertEqual(snapshot_step["globals"]["x"]["repr"], "1")
+
+    def test_csharp_builds_recursive_call_tree(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        Walk(2);",
+                    "    }",
+                    "",
+                    "    static int Walk(int n)",
+                    "    {",
+                    "        if (n == 0)",
+                    "        {",
+                    "            return 0;",
+                    "        }",
+                    "        return Walk(n - 1) + 1;",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        recursive_steps = [step for step in result["steps"] if len(step.get("stack", [])) >= 2]
+        self.assertTrue(recursive_steps)
+        self.assertTrue(any(step["event"] == "return" for step in result["steps"]))
+
+        labels = []
+
+        def walk(node):
+            labels.append(node["label"])
+            for child in node.get("children", []):
+                walk(child)
+
+        walk(result["steps"][-1]["call_tree"])
+        self.assertTrue(any(label.startswith("Walk(") for label in labels))
+
+        main_node = result["steps"][-1]["call_tree"]["children"][0]
+        self.assertEqual(len(main_node["children"]), 1)
+        self.assertEqual(main_node["children"][0]["label"], "Walk(n=2)")
+        self.assertEqual(main_node["children"][0]["children"][0]["label"], "Walk(n=1)")
+        self.assertEqual(main_node["children"][0]["children"][0]["children"][0]["label"], "Walk(n=0)")
+
+    def test_csharp_records_return_values_in_call_tree(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        Console.WriteLine(Double(3));",
+                    "    }",
+                    "",
+                    "    static int Double(int n)",
+                    "    {",
+                    "        return n * 2;",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        double_node = result["steps"][-1]["call_tree"]["children"][0]["children"][0]
+        self.assertEqual(double_node["return_value"], "6")
+
+    def test_csharp_detects_array_structure(self):
+        service = TraceService()
+        result = service.visualize(
+            "\n".join(
+                [
+                    "using System;",
+                    "class Program",
+                    "{",
+                    "    static void Main(string[] args)",
+                    "    {",
+                    "        int[] arr = new int[4];",
+                    "        arr[0] = 1;",
+                    "        arr[1] = 3;",
+                    "        Console.WriteLine(arr[1]);",
+                    "    }",
+                    "}",
+                ]
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(any(item["kind"] == "array" and item["name"] == "arr" for item in result["analysis"]["structures"]))
+        array_steps = [
+            step
+            for step in result["steps"]
+            if step.get("structure") and step["structure"].get("kind") == "array"
+        ]
+        self.assertTrue(array_steps)
+        self.assertEqual(array_steps[-1]["structure"]["name"], "arr")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,15 @@
     };
   }
 
+  function createLanguage() {
+    return {
+      key: "unknown",
+      label: "Unknown",
+      source: "auto",
+      trace_supported: false,
+    };
+  }
+
   function createRunResult(stdin = "") {
     return {
       ok: true,
@@ -20,6 +29,10 @@
       displayError: null,
       stdout: "",
       stdin,
+      runMode: "trace",
+      language: createLanguage(),
+      traceCapabilities: null,
+      supportedLanguages: [],
       analysis: createAnalysis(),
     };
   }
@@ -28,6 +41,7 @@
     return {
       code: "",
       stdin: "",
+      language: "auto",
       steps: [],
       currentIndex: 0,
       timer: null,
@@ -38,6 +52,7 @@
 
   window.Visualizer.state = {
     createAnalysis,
+    createLanguage,
     createRunResult,
     createState,
   };
