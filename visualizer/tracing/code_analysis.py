@@ -4,6 +4,8 @@ import ast
 from collections import defaultdict
 from typing import Any
 
+LINKED_NEXT_KEYS = {"next", "next_node", "nextNode", "nxt"}
+
 
 def analyze_code_structures(code: str) -> dict[str, Any]:
     try:
@@ -105,7 +107,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
 
         if {"left", "right"} & attrs or "children" in attrs:
             self.node_like_classes.add(node.name)
-        if "next" in attrs:
+        if LINKED_NEXT_KEYS & attrs:
             self.linked_node_classes.add(node.name)
 
         self.generic_visit(node)
@@ -278,7 +280,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
                 for key in value.keys
                 if isinstance(key, ast.Constant) and isinstance(key.value, str)
             }
-            return "next" in keys
+            return bool(LINKED_NEXT_KEYS & keys)
 
         if not isinstance(value, ast.Call):
             return False
@@ -288,7 +290,7 @@ class CodeStructureAnalyzer(ast.NodeVisitor):
             return True
 
         keyword_names = {keyword.arg for keyword in value.keywords if keyword.arg}
-        return "next" in keyword_names
+        return bool(LINKED_NEXT_KEYS & keyword_names)
 
     def _call_name(self, func: ast.AST) -> str:
         if isinstance(func, ast.Name):

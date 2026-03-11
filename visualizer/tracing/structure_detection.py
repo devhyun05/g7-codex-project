@@ -6,6 +6,7 @@ from typing import Any
 
 MAX_ITEMS = 8
 LINKED_MAX_ITEMS = 128
+LINKED_NEXT_KEYS = ("next", "next_node", "nextNode", "nxt")
 
 
 class StructureDetector:
@@ -112,8 +113,9 @@ class StructureDetector:
         score = 55
         if self.intent_map.get(name) == "linked-list":
             score = 95
-        elif lowered in {"head", "list_head", "linked_list", "ll"}:
+        elif lowered in {"head", "list_head", "linked_list", "ll"} or "head" in lowered:
             score = 82
+        score += min(len(payload["nodes"]), 24)
 
         return {
             "_score": score,
@@ -297,17 +299,23 @@ class StructureDetector:
             return False
 
         if isinstance(value, dict):
-            return "next" in value
+            return any(key in value for key in LINKED_NEXT_KEYS)
 
         try:
-            return hasattr(value, "next")
+            return any(hasattr(value, key) for key in LINKED_NEXT_KEYS)
         except Exception:  # noqa: BLE001
             return False
 
     def _extract_linked_next(self, value: Any) -> Any:
         if isinstance(value, dict):
-            return value.get("next")
-        return getattr(value, "next", None)
+            for key in LINKED_NEXT_KEYS:
+                if key in value:
+                    return value.get(key)
+            return None
+        for key in LINKED_NEXT_KEYS:
+            if hasattr(value, key):
+                return getattr(value, key, None)
+        return None
 
     def _extract_linked_label(self, value: Any) -> str:
         if isinstance(value, dict):
@@ -326,7 +334,7 @@ class StructureDetector:
         scopes: list[dict[str, Any]],
         node_ids: set[str],
     ) -> str | None:
-        current_names = ["cur", "current", "node", "head", "tail"]
+        current_names = ["cur", "current", "node", "cursor", "ptr", "temp", "head", "tail"]
         for scope in scopes:
             for name in current_names:
                 if name not in scope:

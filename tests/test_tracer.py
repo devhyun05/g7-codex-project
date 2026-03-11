@@ -224,6 +224,30 @@ class ExecutionTracerTest(unittest.TestCase):
             any(item["kind"] == "linked-list" for item in result["analysis"]["structures"])
         )
 
+    def test_detects_linked_list_with_next_node_pointer(self):
+        result = self.tracer.trace(
+            "\n".join(
+                [
+                    "class Node:",
+                    "    def __init__(self, value, next_node=None):",
+                    "        self.value = value",
+                    "        self.next_node = next_node",
+                    "",
+                    "start = Node(1, Node(2, Node(3, Node(4))))",
+                    "cursor = start.next_node.next_node",
+                    "print(cursor.value)",
+                ]
+            )
+        )
+
+        structure = result["steps"][-1]["structure"]
+        self.assertEqual(structure["kind"], "linked-list")
+        self.assertEqual(len(structure["nodes"]), 4)
+        self.assertEqual(structure["nodes"][0]["label"], "1")
+        self.assertEqual(structure["nodes"][3]["label"], "4")
+        self.assertEqual(structure["current_id"], structure["nodes"][2]["id"])
+        self.assertEqual(structure["name"], "start")
+
     def test_keeps_frame_locals_after_recursive_return(self):
         result = self.tracer.trace(
             "\n".join(
