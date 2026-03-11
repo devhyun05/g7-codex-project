@@ -18,6 +18,7 @@
 
     describeView(view) {
       const labels = {
+        sorting: "정렬 알고리즘의 배열 변화를 막대 그래프로 시각화하고 있습니다.",
         graph: "인접 구조를 그래프 흐름으로 시각화하고 있습니다.",
         "data-tree": "노드 구조를 트리로 판단해 현재 노드를 강조하고 있습니다.",
         stack: "push / pop 흐름을 보기 좋게 스택 형태로 시각화하고 있습니다.",
@@ -54,6 +55,7 @@
 
     formatViewLabel(view) {
       const labels = {
+        sorting: "SORT",
         graph: "GRAPH",
         "data-tree": "TREE",
         stack: "STACK",

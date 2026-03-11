@@ -54,6 +54,19 @@ cd /Users/igyeong-geun/Documents/code/python_flow_visualizer
 python -m unittest discover -s tests
 ```
 
+## CI/CD (GitHub Actions + Vercel)
+
+- CI: `.github/workflows/ci.yml`
+  - 모든 `push`/`pull_request`에서 테스트를 실행합니다.
+- CD: `.github/workflows/deploy-vercel.yml`
+  - `hyun` 브랜치로 `push`되면 테스트 후 Vercel에 프로덕션 배포합니다.
+
+GitHub 저장소 `Settings > Secrets and variables > Actions`에 아래 시크릿을 추가해야 합니다.
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
 ## 제한 사항
 
 - 학습용 로컬 도구 기준으로 만들었습니다.
