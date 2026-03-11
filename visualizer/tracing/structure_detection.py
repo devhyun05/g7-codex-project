@@ -26,6 +26,8 @@ class StructureDetector:
         candidates: list[tuple[int, str, dict[str, Any]]] = []
         for scope in scopes:
             for name, value in scope.items():
+                if name.startswith("__"):
+                    continue
                 graph = self._coerce_graph(value)
                 if graph:
                     score = self._graph_score(name)
@@ -64,6 +66,8 @@ class StructureDetector:
         candidates: list[tuple[int, str, dict[str, Any]]] = []
         for scope in scopes:
             for name, value in scope.items():
+                if name.startswith("__"):
+                    continue
                 structure = self._coerce_structure(name, value, scopes)
                 if structure:
                     candidates.append((structure.pop("_score"), name, structure))
@@ -299,10 +303,20 @@ class StructureDetector:
             return False
 
         if isinstance(value, dict):
-            return any(key in value for key in LINKED_NEXT_KEYS)
+            if not any(key in value for key in LINKED_NEXT_KEYS):
+                return False
+            if any(key in value for key in ("value", "val", "data", "key")):
+                return True
+            non_link_keys = [key for key in value.keys() if key not in LINKED_NEXT_KEYS]
+            return len(non_link_keys) == 1
 
         try:
-            return any(hasattr(value, key) for key in LINKED_NEXT_KEYS)
+            if not any(hasattr(value, key) for key in LINKED_NEXT_KEYS):
+                return False
+            if any(hasattr(value, key) for key in ("value", "val", "data", "key")):
+                return True
+            attrs = getattr(value, "__dict__", {})
+            return isinstance(attrs, dict) and len(attrs) <= 4
         except Exception:  # noqa: BLE001
             return False
 

@@ -789,17 +789,13 @@
 
   function buildLinkedListMarkup(structure) {
     const nodes = structure.nodes || [];
-    const indexById = new Map(nodes.map((node, index) => [node.id, index]));
     return `
       <div class="stage-scroll">
-        <div class="visual-caption">
-          <span><span class="legend-dot pointer-current"></span>현재 노드</span>
-        </div>
         <div class="structure-board">
           <div class="linked-list-lane">
             ${nodes.length
               ? nodes
-                  .map((node, index) => {
+                  .map((node) => {
                     const cardClasses = [
                       "linked-node-card",
                       node.id === structure.head_id ? "head" : "",
@@ -807,31 +803,18 @@
                     ]
                       .filter(Boolean)
                       .join(" ");
-                    let pointerLabel = "next → null";
-                    if (node.next_id) {
-                      if (indexById.has(node.next_id)) {
-                        pointerLabel = `next → #${indexById.get(node.next_id)}`;
-                      } else {
-                        pointerLabel = "next → ?";
-                      }
-                    }
+                    const arrow = node.next_id ? '<span class="linked-arrow">→</span>' : "";
                     return `
                       <div class="linked-segment">
                         <div class="${cardClasses}">
-                          <span class="linked-tag">${node.id === structure.head_id ? "HEAD" : `#${index}`}</span>
-                          <div class="linked-node-grid">
-                            <div class="linked-cell linked-value">${utils.escapeHtml(node.label)}</div>
-                            <div class="linked-cell linked-next">next</div>
-                          </div>
+                          <strong>${utils.escapeHtml(node.label)}</strong>
                         </div>
-                        <span class="linked-pointer ${node.next_id ? "" : "null"}">${utils.escapeHtml(pointerLabel)}</span>
+                        ${arrow}
                       </div>
                     `;
                   })
                   .join("")
               : '<div class="linked-node-card">empty</div>'}
-            ${structure.cycle ? '<span class="linked-extra">cycle detected</span>' : ""}
-            ${structure.truncated ? '<span class="linked-extra">truncated...</span>' : ""}
           </div>
         </div>
       </div>
