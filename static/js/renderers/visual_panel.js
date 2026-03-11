@@ -16,7 +16,8 @@
 
   function render(dom, state, step, activeFrame) {
     const sortingState = extractSortingState(step, state);
-    const view = detectPrimaryView(step, state, sortingState);
+    const linkedListState = extractLinkedListState(step, state);
+    const view = detectPrimaryView(step, state, sortingState, linkedListState);
     dom.primaryViewLabel.textContent = utils.formatViewLabel(view);
 
     if (view === "sorting") {
@@ -48,7 +49,7 @@
       dom.stageTitle.textContent = "연결 리스트";
       dom.stageCaption.textContent = "head에서 next로 이어지는 노드 체인을 연결 리스트로 표현합니다.";
       dom.primaryStage.className = "visual-stage";
-      dom.primaryStage.innerHTML = buildLinkedListMarkup(step.structure);
+      dom.primaryStage.innerHTML = buildLinkedListMarkup(linkedListState);
       return view;
     }
 
@@ -94,21 +95,21 @@
     return view;
   }
 
-  function detectPrimaryView(step, state, sortingState) {
-    if (shouldPreferSortingBars(step, state, sortingState)) {
+  function detectPrimaryView(step, state, sortingState, linkedListState) {
+    if (linkedListState) {
+      return "linked-list";
+    }
+
+    if (shouldPreferSortingBars(step, state, sortingState, linkedListState)) {
       return "sorting";
     }
 
-    if (shouldPreferSortingCallTree(step, state)) {
+    if (shouldPreferSortingCallTree(step, state, linkedListState)) {
       return "call-tree";
     }
 
     if (step && step.graph && Array.isArray(step.graph.nodes) && step.graph.nodes.length) {
       return "graph";
-    }
-
-    if (step && step.structure && step.structure.kind === "linked-list") {
-      return "linked-list";
     }
 
     if (step && step.structure && step.structure.kind === "tree") {
@@ -135,7 +136,10 @@
     return "summary";
   }
 
-  function shouldPreferSortingCallTree(step, state) {
+  function shouldPreferSortingCallTree(step, state, linkedListState) {
+    if (linkedListState) {
+      return false;
+    }
     if (!step || !step.call_tree || !Array.isArray(step.call_tree.children)) {
       return false;
     }
@@ -148,8 +152,8 @@
     return Boolean(intents && intents.sorting);
   }
 
-  function shouldPreferSortingBars(step, state, sortingState) {
-    if (step && step.structure && step.structure.kind === "linked-list") {
+  function shouldPreferSortingBars(step, state, sortingState, linkedListState) {
+    if (linkedListState) {
       return false;
     }
     const intents = state && state.runResult && state.runResult.analysis
@@ -167,6 +171,38 @@
       return false;
     }
     return Boolean(sortingState || stackLooksSorting || (intents && intents.sorting));
+  }
+
+  function extractLinkedListState(step, state) {
+    if (step && step.structure && step.structure.kind === "linked-list") {
+      return step.structure;
+    }
+    return findNearbyLinkedListState(state);
+  }
+
+  function findNearbyLinkedListState(state) {
+    if (!state || !Array.isArray(state.steps) || !state.steps.length) {
+      return null;
+    }
+
+    for (let offset = 1; offset < state.steps.length; offset += 1) {
+      const leftIndex = state.currentIndex - offset;
+      if (leftIndex >= 0) {
+        const left = state.steps[leftIndex];
+        if (left && left.structure && left.structure.kind === "linked-list") {
+          return left.structure;
+        }
+      }
+
+      const rightIndex = state.currentIndex + offset;
+      if (rightIndex < state.steps.length) {
+        const right = state.steps[rightIndex];
+        if (right && right.structure && right.structure.kind === "linked-list") {
+          return right.structure;
+        }
+      }
+    }
+    return null;
   }
 
   function extractSortingState(step, state) {
