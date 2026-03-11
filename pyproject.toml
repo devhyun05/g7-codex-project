@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-flow-visualizer"
+version = "0.1.0"
+description = "Educational Python execution visualizer inspired by Python Tutor"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0.0",
+]
+
+[tool.setuptools]
+py-modules = ["app", "tracer"]
+
