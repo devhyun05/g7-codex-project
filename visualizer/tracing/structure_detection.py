@@ -308,6 +308,9 @@ class StructureDetector:
         if not nodes:
             return None
 
+        if len(nodes) < 2:
+            return None
+
         has_pointer_link = any(
             node.get("next_id") is not None or node.get("prev_id") is not None
             for node in nodes

@@ -176,7 +176,7 @@
   }
 
   function extractLinkedListState(step, state) {
-    if (step && step.structure && step.structure.kind === "linked-list") {
+    if (step && isConnectedLinkedList(step.structure)) {
       return step.structure;
     }
     return findNearbyLinkedListState(state);
@@ -189,11 +189,27 @@
 
     for (let index = state.currentIndex - 1; index >= 0; index -= 1) {
       const previous = state.steps[index];
-      if (previous && previous.structure && previous.structure.kind === "linked-list") {
+      if (previous && isConnectedLinkedList(previous.structure)) {
         return previous.structure;
       }
     }
     return null;
+  }
+
+  function isConnectedLinkedList(structure) {
+    if (!structure || structure.kind !== "linked-list") {
+      return false;
+    }
+    const nodes = Array.isArray(structure.nodes) ? structure.nodes : [];
+    if (nodes.length < 2) {
+      return false;
+    }
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    return nodes.some(
+      (node) =>
+        (node.next_id && nodeIds.has(node.next_id)) ||
+        (node.prev_id && nodeIds.has(node.prev_id)),
+    );
   }
 
   function extractSortingState(step, state) {
