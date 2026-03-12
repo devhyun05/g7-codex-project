@@ -1,39 +1,75 @@
 # Python Flow Visualizer
 
-`pythontutor.com` 스타일을 참고해 만든 학습용 Python 실행 시각화 앱입니다.
+Python 코드를 입력하면 실행 결과만 보여주는 것이 아니라,
+**코드가 어떤 줄을 지나가고, 어떤 함수가 호출되고, 자료구조가 어떻게 변하는지**를
+step 단위로 시각화해 주는 학습용 도구입니다.
 
-## 포함된 기능
+## 왜 만들었는가
 
-- Python 코드를 한 줄씩 trace
+자료구조나 알고리즘을 공부할 때 가장 어려운 부분은
+“코드가 실제로 어떻게 흘러가는지 눈으로 보기 어렵다”는 점이었습니다.
+
+그래서 저희는:
+
+- 현재 실행 중인 줄
+- 함수 호출 스택
+- 자료구조 상태
+- stdout 출력
+- 에러 메시지
+- 알고리즘 설명
+
+을 한 화면에서 같이 볼 수 있는 도구를 만들었습니다.
+
+즉, 이 프로젝트는 단순한 Python 실행기가 아니라
+**Python 코드의 실행 과정을 학습용으로 해석해서 보여주는 시각화 도구**입니다.
+
+## 핵심 기능
+
+- Python 코드를 step 단위로 trace
 - 현재 실행 줄 하이라이트
-- 현재 실행 코드 아래에서 `stdout` / 오류 확인
-- 주 시각화 아래에서 현재 step과 자동 판단 결과 설명
-- 재귀 함수 호출 트리 시각화
-- 인접 구조는 그래프, 노드 구조는 트리, `append/pop`, `deque/popleft` 패턴은 스택/큐로 자동 판단
-- 편집 화면의 입력 데이터로 `input()` 실행 지원
+- 함수 호출 스택 및 재귀 호출 트리 시각화
+- 그래프 / 트리 / 스택 / 큐 자동 판단
+- stdout / 에러 메시지 표시
+- 현재 step 기준 코드 설명 제공
+- `input()` 기반 입력 데이터 실행 지원
 
-## 협업용 구조
+## 기술 스택
 
-- [app.py](/Users/igyeong-geun/Documents/code/python_flow_visualizer/app.py)
-  역할: Flask 진입점만 유지
-- [visualizer/routes.py](/Users/igyeong-geun/Documents/code/python_flow_visualizer/visualizer/routes.py)
-  역할: 라우트 정의
-- [visualizer/services/trace_service.py](/Users/igyeong-geun/Documents/code/python_flow_visualizer/visualizer/services/trace_service.py)
-  역할: trace 서비스 연결
-- [visualizer/tracing/runtime.py](/Users/igyeong-geun/Documents/code/python_flow_visualizer/visualizer/tracing/runtime.py)
-  역할: 실행 추적 엔진
-- [visualizer/tracing/code_analysis.py](/Users/igyeong-geun/Documents/code/python_flow_visualizer/visualizer/tracing/code_analysis.py)
-  역할: 코드 패턴 기반 자료구조 추론
-- [visualizer/tracing/structure_detection.py](/Users/igyeong-geun/Documents/code/python_flow_visualizer/visualizer/tracing/structure_detection.py)
-  역할: 런타임 값 기반 구조 감지
-- [static/js/controller.js](/Users/igyeong-geun/Documents/code/python_flow_visualizer/static/js/controller.js)
-  역할: 프런트 상태와 이벤트 제어
-- [static/js/renderers/code_panel.js](/Users/igyeong-geun/Documents/code/python_flow_visualizer/static/js/renderers/code_panel.js)
-  역할: 코드 / 출력 렌더링
-- [static/js/renderers/visual_panel.js](/Users/igyeong-geun/Documents/code/python_flow_visualizer/static/js/renderers/visual_panel.js)
-  역할: 주 시각화 렌더링
-- [static/js/renderers/explanation_panel.js](/Users/igyeong-geun/Documents/code/python_flow_visualizer/static/js/renderers/explanation_panel.js)
-  역할: 코드 설명 패널 렌더링
+- Backend: Flask
+- Frontend: HTML, CSS, Vanilla JavaScript
+- Visualization: 자체 렌더링 기반 UI
+- Test: `unittest`
+- Deploy/CI: GitHub Actions, Vercel
+
+## 역할 분담
+
+- 이경근: 초기 화면 / 실행 화면 UI 개선, 에러 메시지 경험 정리, 프론트 인터랙션 조정
+- 이현성: 핵심 시각화 기능 확장, 브랜치 통합, 배포 흐름 구성
+- 여서진: 실행 흐름 패널, 시각화 패널 구조 개선, 병합 이후 화면 동작 정리
+- 송채강: 실행 환경 관련 구조 변경, 런타임/프로젝트 구조 확장 작업
+
+## 개발하면서 어려웠던 점
+
+가장 어려웠던 부분은 **브랜치 병합과 트러블슈팅**이었습니다.
+
+여러 명이 동시에 같은 프론트 파일과 실행 흐름 로직을 수정하다 보니:
+
+- `templates/index.html`
+- `static/js/controller.js`
+- `static/js/renderers/visual_panel.js`
+
+같은 핵심 파일에서 충돌이 자주 발생했습니다.
+
+특히 병합 이후에는:
+
+- 프런트와 백엔드의 응답 계약이 어긋나 실행 버튼이 동작하지 않거나
+- 특정 코드가 그래프가 아니라 정렬로 잘못 분류되거나
+- 테스트는 통과하지만 실제 UI에서는 다른 화면이 보이는 문제
+
+같은 이슈를 하나씩 추적해야 했습니다.
+
+그래서 이번 프로젝트에서는 기능 구현만큼이나
+**병합 이후 문제를 재현하고, 원인을 분리하고, 다시 검증하는 과정**이 중요했습니다.
 
 ## 실행 방법
 
@@ -53,23 +89,3 @@ python app.py
 cd /Users/igyeong-geun/Documents/code/python_flow_visualizer
 python -m unittest discover -s tests
 ```
-
-## CI/CD (GitHub Actions + Vercel)
-
-- CI: `.github/workflows/ci.yml`
-  - 모든 `push`/`pull_request`에서 테스트를 실행합니다.
-- CD: `.github/workflows/deploy-vercel.yml`
-  - `hyun` 브랜치로 `push`되면 테스트 후 Vercel에 프로덕션 배포합니다.
-
-GitHub 저장소 `Settings > Secrets and variables > Actions`에 아래 시크릿을 추가해야 합니다.
-
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID`
-- `VERCEL_PROJECT_ID`
-
-## 제한 사항
-
-- 학습용 로컬 도구 기준으로 만들었습니다.
-- 안전을 위해 `os`, `sys` 같은 import는 막고 `math`, `random`, `itertools`, `collections`, `heapq`만 허용합니다.
-- 무한 루프를 피하기 위해 실행 step 수와 시간을 제한합니다.
-- 자료구조 자동 판단은 AST 패턴과 런타임 값을 함께 사용하므로, 아주 특이한 구현은 놓칠 수 있습니다.
